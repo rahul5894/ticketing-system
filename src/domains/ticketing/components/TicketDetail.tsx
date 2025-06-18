@@ -409,7 +409,7 @@ export function TicketDetail({ ticket, isAdmin = false, onTicketUpdate }: Ticket
               </div>
 
             {/* Message content */}
-            <div className="prose prose-sm max-w-none mb-4">
+            <div className="prose prose-sm max-w-none mb-4 ml-13">
               <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">
                 {mainMessage.content}
               </p>
@@ -417,7 +417,7 @@ export function TicketDetail({ ticket, isAdmin = false, onTicketUpdate }: Ticket
 
             {/* Attachments */}
             {mainMessage.attachments.length > 0 && (
-              <div className="mb-6">
+              <div className="mb-6 ml-13">
                 <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">
                   {mainMessage.attachments.length} Attachments
                 </h4>
