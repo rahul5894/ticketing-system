@@ -114,9 +114,26 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
   }
-  body {
+  html, body {
+    height: 100%;
+    overflow: hidden;
     @apply bg-background text-foreground;
+  }
+
+  #__next {
+    height: 100%;
+  }
+
+  /* Remove all outlines from inputs and interactive elements */
+  input, textarea, select, button, [role="button"], [tabindex] {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  input:focus, textarea:focus, select:focus, button:focus, [role="button"]:focus, [tabindex]:focus {
+    outline: none !important;
+    box-shadow: none !important;
   }
 }
