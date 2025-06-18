@@ -3,23 +3,22 @@
 import { useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Search, Filter, ChevronDown, ChevronUp } from "lucide-react"
-import { cn } from "@/lib/utils"
 import { TicketCard } from "./TicketCard"
-import { mockTickets } from "../models/ticket.schema"
+import { mockTickets, Ticket } from "../models/ticket.schema"
 
 interface RecentTicketsProps {
   selectedTicketId?: string
   onTicketSelect?: (ticketId: string) => void
+  tickets?: Ticket[]
 }
 
-export function RecentTickets({ selectedTicketId, onTicketSelect }: RecentTicketsProps) {
+export function RecentTickets({ selectedTicketId, onTicketSelect, tickets = mockTickets }: RecentTicketsProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [isOpen, setIsOpen] = useState(true)
 
-  const openTickets = mockTickets.filter(ticket => ticket.status === "open")
+  const openTickets = tickets.filter(ticket => ticket.status === "open")
   const filteredTickets = openTickets.filter(ticket =>
     ticket.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     ticket.userName.toLowerCase().includes(searchQuery.toLowerCase())

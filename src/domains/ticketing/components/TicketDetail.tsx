@@ -1,20 +1,22 @@
 "use client"
 
+import { useState } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
-import { 
-  Bold, 
-  Italic, 
-  Underline, 
-  AlignLeft, 
-  AlignCenter, 
-  AlignRight, 
-  List, 
-  ListOrdered, 
+import {
+  Bold,
+  Italic,
+  Underline,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  List,
+  ListOrdered,
   Link,
   Paperclip,
   Smile,
@@ -26,10 +28,12 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
-import { Ticket, Attachment } from "../models/ticket.schema"
+import { Ticket, Attachment, TicketPriority, Department } from "../models/ticket.schema"
 
 interface TicketDetailProps {
   ticket: Ticket
+  isAdmin?: boolean
+  onTicketUpdate?: (ticketId: string, updates: Partial<Ticket>) => void
 }
 
 const priorityColors = {
@@ -51,6 +55,220 @@ const departmentColors = {
   support: "bg-purple-100 text-purple-800",
   marketing: "bg-pink-100 text-pink-800",
   technical: "bg-blue-100 text-blue-800"
+}
+
+// Dot colors for interactive badges (text colors from above)
+const priorityDotColors = {
+  low: "bg-gray-500",
+  medium: "bg-yellow-500",
+  high: "bg-red-500",
+  urgent: "bg-red-700"
+}
+
+const departmentDotColors = {
+  sales: "bg-orange-500",
+  support: "bg-purple-500",
+  marketing: "bg-pink-500",
+  technical: "bg-blue-500"
+}
+
+// Priority options for dropdown
+const priorityOptions: { value: TicketPriority; label: string }[] = [
+  { value: "low", label: "Low Priority" },
+  { value: "medium", label: "Medium Priority" },
+  { value: "high", label: "High Priority" },
+  { value: "urgent", label: "Urgent Priority" }
+]
+
+// Department options for dropdown
+const departmentOptions: { value: Department; label: string }[] = [
+  { value: "sales", label: "Sales Department" },
+  { value: "support", label: "Support Department" },
+  { value: "marketing", label: "Marketing Department" },
+  { value: "technical", label: "Technical Department" }
+]
+
+interface ConfirmationDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  title: string
+  description: string
+  onConfirm: () => void
+}
+
+function ConfirmationDialog({ open, onOpenChange, title, description, onConfirm }: ConfirmationDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={onConfirm}>
+            Confirm
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+interface InteractivePriorityBadgeProps {
+  currentPriority: TicketPriority
+  onPriorityChange: (newPriority: TicketPriority) => void
+  isAdmin: boolean
+}
+
+function InteractivePriorityBadge({ currentPriority, onPriorityChange, isAdmin }: InteractivePriorityBadgeProps) {
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean
+    newPriority: TicketPriority | null
+  }>({ open: false, newPriority: null })
+
+  const handlePrioritySelect = (newPriority: TicketPriority) => {
+    if (newPriority === currentPriority) return
+
+    setConfirmDialog({
+      open: true,
+      newPriority
+    })
+  }
+
+  const handleConfirm = () => {
+    if (confirmDialog.newPriority) {
+      onPriorityChange(confirmDialog.newPriority)
+    }
+    setConfirmDialog({ open: false, newPriority: null })
+  }
+
+  const currentOption = priorityOptions.find(option => option.value === currentPriority)
+  const newOption = priorityOptions.find(option => option.value === confirmDialog.newPriority)
+
+  if (!isAdmin) {
+    return (
+      <Badge className={cn("text-xs", priorityColors[currentPriority])}>
+        {currentPriority.charAt(0).toUpperCase() + currentPriority.slice(1)} Priority
+      </Badge>
+    )
+  }
+
+  return (
+    <>
+      <Select value={currentPriority} onValueChange={handlePrioritySelect}>
+        <SelectTrigger
+          className={cn(
+            "inline-flex items-center justify-center rounded-md h-6! px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 gap-1 transition-[color,box-shadow] overflow-hidden",
+            "border bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100",
+            "hover:opacity-80 cursor-pointer"
+          )}
+        >
+          <div className={cn("w-2 h-2 rounded-full", priorityDotColors[currentPriority])} />
+          <SelectValue>
+            {currentPriority.charAt(0).toUpperCase() + currentPriority.slice(1)} Priority
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {priorityOptions.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              <div className={cn("flex items-center gap-2 text-xs")}>
+                <div className={cn("w-2 h-2 rounded-full", priorityDotColors[option.value])} />
+                {option.label}
+              </div>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <ConfirmationDialog
+        open={confirmDialog.open}
+        onOpenChange={(open) => setConfirmDialog({ open, newPriority: null })}
+        title="Change Priority"
+        description={`Change priority from ${currentOption?.label} to ${newOption?.label}?`}
+        onConfirm={handleConfirm}
+      />
+    </>
+  )
+}
+
+interface InteractiveDepartmentBadgeProps {
+  currentDepartment: Department
+  onDepartmentChange: (newDepartment: Department) => void
+  isAdmin: boolean
+}
+
+function InteractiveDepartmentBadge({ currentDepartment, onDepartmentChange, isAdmin }: InteractiveDepartmentBadgeProps) {
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean
+    newDepartment: Department | null
+  }>({ open: false, newDepartment: null })
+
+  const handleDepartmentSelect = (newDepartment: Department) => {
+    if (newDepartment === currentDepartment) return
+
+    setConfirmDialog({
+      open: true,
+      newDepartment
+    })
+  }
+
+  const handleConfirm = () => {
+    if (confirmDialog.newDepartment) {
+      onDepartmentChange(confirmDialog.newDepartment)
+    }
+    setConfirmDialog({ open: false, newDepartment: null })
+  }
+
+  const currentOption = departmentOptions.find(option => option.value === currentDepartment)
+  const newOption = departmentOptions.find(option => option.value === confirmDialog.newDepartment)
+
+  if (!isAdmin) {
+    return (
+      <Badge className={cn("text-xs", departmentColors[currentDepartment])}>
+        {currentDepartment.charAt(0).toUpperCase() + currentDepartment.slice(1)} Department
+      </Badge>
+    )
+  }
+
+  return (
+    <>
+      <Select value={currentDepartment} onValueChange={handleDepartmentSelect}>
+        <SelectTrigger
+          className={cn(
+            "inline-flex items-center justify-center rounded-md h-6! px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 gap-1 transition-[color,box-shadow] overflow-hidden",
+            "border bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100",
+            "hover:opacity-80 cursor-pointer"
+          )}
+        >
+          <div className={cn("w-2 h-2 rounded-full", departmentDotColors[currentDepartment])} />
+          <SelectValue>
+            {currentDepartment.charAt(0).toUpperCase() + currentDepartment.slice(1)} Department
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {departmentOptions.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              <div className={cn("flex items-center gap-2 text-xs")}>
+                <div className={cn("w-2 h-2 rounded-full", departmentDotColors[option.value])} />
+                {option.label}
+              </div>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <ConfirmationDialog
+        open={confirmDialog.open}
+        onOpenChange={(open) => setConfirmDialog({ open, newDepartment: null })}
+        title="Change Department"
+        description={`Change department from ${currentOption?.label} to ${newOption?.label}?`}
+        onConfirm={handleConfirm}
+      />
+    </>
+  )
 }
 
 function AttachmentItem({ attachment }: { attachment: Attachment }) {
@@ -92,7 +310,7 @@ function AttachmentItem({ attachment }: { attachment: Attachment }) {
   )
 }
 
-export function TicketDetail({ ticket }: TicketDetailProps) {
+export function TicketDetail({ ticket, isAdmin = false, onTicketUpdate }: TicketDetailProps) {
   const getInitials = (name: string) => {
     return name
       .split(" ")
@@ -101,10 +319,38 @@ export function TicketDetail({ ticket }: TicketDetailProps) {
       .toUpperCase()
   }
 
+  const handlePriorityChange = (newPriority: TicketPriority) => {
+    onTicketUpdate?.(ticket.id, { priority: newPriority })
+  }
+
+  const handleDepartmentChange = (newDepartment: Department) => {
+    onTicketUpdate?.(ticket.id, { department: newDepartment })
+  }
+
   const mainMessage = ticket.messages[0]
 
   return (
-    <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm h-full flex flex-col my-6 mb-6">
+<div
+  className="
+    flex-1
+    h-[calc(100%-3rem)]
+    my-6
+
+    bg-white dark:bg-gray-800
+    rounded-lg
+    border border-gray-200 dark:border-gray-700
+    shadow-sm
+
+    flex flex-col
+
+    overflow-hidden
+  "
+>
+  {/* now if you need scrolling: */}
+  <div className="flex-1 overflow-auto ">
+    {/* your actual content */}
+
+   
       {/* Header */}
       <div className="p-6 border-b border-gray-200 dark:border-gray-700 shrink-0">
         <div className="flex items-center justify-between mb-4">
@@ -128,12 +374,16 @@ export function TicketDetail({ ticket }: TicketDetailProps) {
           <Badge className={cn("text-xs", statusColors[ticket.status])}>
             {ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1)}
           </Badge>
-          <Badge className={cn("text-xs", priorityColors[ticket.priority])}>
-            {ticket.priority.charAt(0).toUpperCase() + ticket.priority.slice(1)} Priority
-          </Badge>
-          <Badge className={cn("text-xs", departmentColors[ticket.department])}>
-            {ticket.department.charAt(0).toUpperCase() + ticket.department.slice(1)} Department
-          </Badge>
+          <InteractivePriorityBadge
+            currentPriority={ticket.priority}
+            onPriorityChange={handlePriorityChange}
+            isAdmin={isAdmin}
+          />
+          <InteractiveDepartmentBadge
+            currentDepartment={ticket.department}
+            onDepartmentChange={handleDepartmentChange}
+            isAdmin={isAdmin}
+          />
         </div>
       </div>
 
@@ -293,14 +543,16 @@ Lisa"
                 <AtSign className="h-4 w-4" />
               </Button>
             </div>
-            <Button className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700">
-              <Send className="h-4 w-4 mr-2" />
+            <Button className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white dark:text-white">
+              <Send className="h-4 w-4 mr-1 text-white dark:text-white" />
               Send
             </Button>
           </div>
         </div>
         </div>
       </div>
-    </div>
+            </div>
+      </div>
+    
   )
 }

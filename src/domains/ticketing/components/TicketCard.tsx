@@ -13,24 +13,24 @@ interface TicketCardProps {
 }
 
 const priorityColors = {
-  low: "bg-gray-100 text-gray-800 hover:bg-gray-200",
-  medium: "bg-yellow-100 text-yellow-800 hover:bg-yellow-200",
-  high: "bg-red-100 text-red-800 hover:bg-red-200",
-  urgent: "bg-red-200 text-red-900 hover:bg-red-300"
+  low: "bg-gray-100 text-gray-800 ",
+  medium: "bg-yellow-100 text-yellow-800 ",
+  high: "bg-red-100 text-red-800 ",
+  urgent: "bg-red-200 text-red-900"
 }
 
 const statusColors = {
-  open: "bg-green-100 text-green-800 hover:bg-green-200",
-  closed: "bg-gray-100 text-gray-800 hover:bg-gray-200",
-  pending: "bg-yellow-100 text-yellow-800 hover:bg-yellow-200",
-  resolved: "bg-blue-100 text-blue-800 hover:bg-blue-200"
+  open: "bg-green-100 text-green-800",
+  closed: "bg-gray-100 text-gray-800",
+  pending: "bg-yellow-100 text-yellow-800",
+  resolved: "bg-blue-100 text-blue-800"
 }
 
 const departmentColors = {
-  sales: "bg-orange-100 text-orange-800 hover:bg-orange-200",
-  support: "bg-purple-100 text-purple-800 hover:bg-purple-200",
-  marketing: "bg-pink-100 text-pink-800 hover:bg-pink-200",
-  technical: "bg-blue-100 text-blue-800 hover:bg-blue-200"
+  sales: "bg-orange-100 text-orange-800",
+  support: "bg-purple-100 text-purple-800",
+  marketing: "bg-pink-100 text-pink-800",
+  technical: "bg-blue-100 text-blue-800"
 }
 
 export function TicketCard({ ticket, isSelected, onClick }: TicketCardProps) {
@@ -53,13 +53,13 @@ export function TicketCard({ ticket, isSelected, onClick }: TicketCardProps) {
       className={cn(
         "p-4 border-b border-gray-100 dark:border-gray-700 cursor-pointer transition-colors",
         !isSelected && "hover:bg-gray-50 dark:hover:bg-gray-700",
-        isSelected && "bg-blue-50/80 dark:bg-blue-900/30 border-blue-200/80 dark:border-blue-600"
+        isSelected && "bg-blue-50/60 dark:bg-blue-900/30 border-blue-200/50 dark:border-blue-600/50"
       )}
       onClick={onClick}
     >
       <div className="flex items-start gap-3">
         {/* Avatar */}
-        <Avatar className="h-8 w-8 shrink-0">
+        <Avatar className="h-8 w-8 shrink-0 border border-blue-200">
           <AvatarImage src={ticket.userAvatar} />
           <AvatarFallback className="bg-blue-100 text-blue-600 text-xs font-medium">
             {getInitials(ticket.userName)}

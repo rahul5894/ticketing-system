@@ -2,10 +2,9 @@
 
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { 
-  FileText, 
-  Image as ImageIcon, 
-  Download,
+import {
+  FileText,
+  Image as ImageIcon,
   ExternalLink,
   Edit
 } from "lucide-react"
@@ -68,7 +67,7 @@ function FileItem({ file }: { file: VisitorData['files'][0] }) {
   const isPdf = file.type === 'pdf'
 
   return (
-    <div className="flex items-start gap-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg cursor-pointer">
+    <div className="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg cursor-pointer">
       <div className={cn(
         "flex items-center justify-center w-8 h-8 rounded",
         isPdf ? "bg-red-100 dark:bg-red-900/20" : isImage ? "bg-blue-100 dark:bg-blue-900/20" : "bg-gray-100 dark:bg-gray-700"

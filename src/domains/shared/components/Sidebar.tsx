@@ -53,7 +53,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
           "fixed left-0 top-0 z-50 h-full bg-gray-900 transition-all duration-300 ease-in-out flex flex-col",
           isOpen ? "w-64" : "w-[3.125rem]",
           "lg:w-[3.125rem]",
-          isHovered && !isOpen && "lg:w-64"
+          isHovered && !isOpen && "lg:w-52"
         )}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
@@ -85,7 +85,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
                         className={cn(
                           "w-full text-gray-300 hover:bg-gray-800 hover:text-white h-10 transition-all duration-300",
                           "justify-center px-0",
-                          item.active && "bg-blue-600 text-white hover:bg-blue-700 mx-2 rounded-md"
+                          item.active && "bg-blue-600 text-white hover:bg-blue-700 rounded-md"
                         )}
                       >
                         <Icon className="h-1.25rem w-1.25rem shrink-0" />
@@ -101,7 +101,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
                     className={cn(
                       "w-full text-gray-300 hover:bg-gray-800 hover:text-white h-10 transition-all duration-300",
                       "justify-start px-3",
-                      item.active && "bg-blue-600 text-white hover:bg-blue-700 mx-2 rounded-md"
+                      item.active && "bg-blue-600 text-white hover:bg-blue-700 rounded-md"
                     )}
                   >
                     <Icon className="h-1.25rem w-1.25rem shrink-0" />
