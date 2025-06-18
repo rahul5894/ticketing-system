@@ -425,6 +425,25 @@ project-root/
 ```
 
 ---
+>
+> 📌 *This structure is carefully aligned with the planned UI/UX shown in `Docs/BluePrint/UI-UX-Complete.webp`, ensuring that component grouping and folder boundaries directly reflect real product features.*
+>
+> This structure is designed for:
+
+* ✅ Clear separation of business concerns (domain-based)
+* ✅ Scalable feature development (easy to add modules)
+* ✅ No unnecessary complexity (beginner-friendly)
+* ✅ Reusability and maintainability
+
+---
+
+This phrasing:
+
+* Matches a professional technical tone
+* Clearly links the folder layout to the UI/UX plan
+* Helps future devs (or AI agents) **cross-reference the design with code structure**
+
+---
 
 ## ✅ Core Principles Maintained
 
