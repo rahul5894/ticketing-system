@@ -1,7 +1,3 @@
-Absolutely, let's proceed with **Part 1: Architecture & Tech Stack** for your modern, scalable ticketing system. This section will provide a comprehensive blueprint, ensuring simplicity now and flexibility for future enhancements.
-
----
-
 ## 🧱 Part 1: Architecture & Tech Stack
 
 ### 🎯 Project Goals
@@ -25,56 +21,7 @@ Absolutely, let's proceed with **Part 1: Architecture & Tech Stack** for your mo
 | Backend          | Supabase       | Database, API, and serverless functions |                                                                                                     |
 | Styling          | Tailwind CSS   | Utility-first CSS framework             |                                                                                                     |
 | UI Components    | ShadCN UI      | Pre-built accessible UI components      |                                                                                                     |
-| Validation       | Zod            | Schema validation                       | ([gist.github.com][1], [learn.microsoft.com][2], [supabase.com][3], [supabase.com][4], [dev.to][5]) |
-
----
-
-### 🗂️ Project Structure
-
-```plaintext
-project-root/
-├── app/                            # Next.js App Router
-│   ├── layout.tsx
-│   ├── page.tsx
-│   ├── tickets/
-│   │   ├── page.tsx
-│   │   └── [id]/                   # Dynamic routes for ticket details
-│   │       └── page.tsx
-│   ├── auth/                       # Authentication pages
-│   │   ├── sign-in.tsx
-│   │   └── sign-up.tsx
-│   └── ...
-├── components/                     # Reusable UI components
-│   ├── Navbar.tsx
-│   ├── TicketCard.tsx
-│   └── ...
-├── domains/                        # Business logic organized by domain
-│   ├── ticketing/
-│   │   ├── services/
-│   │   ├── models/
-│   │   └── utils/
-│   ├── notifications/
-│   │   ├── services/
-│   │   └── utils/
-│   └── ...
-├── lib/                            # Utility functions and API clients
-│   ├── supabaseClient.ts
-│   ├── clerkClient.ts
-│   └── ...
-├── styles/                         # Global styles
-│   └── globals.css
-├── supabase/                       # Supabase Edge Functions
-│   └── functions/
-│       └── notify-user/
-│           └── index.ts
-├── public/                         # Static assets
-├── .env.local                      # Environment variables
-├── tailwind.config.js
-├── next.config.js
-└── package.json
-```
-
-
+| Validation       | Zod            | Schema validation                       |
 
 ---
 
