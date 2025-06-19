@@ -14,24 +14,28 @@ interface TicketCardProps {
 }
 
 const priorityColors = {
-  low: 'bg-gray-100 text-gray-800 ',
-  medium: 'bg-yellow-100 text-yellow-800 ',
-  high: 'bg-red-100 text-red-800 ',
-  urgent: 'bg-red-200 text-red-900',
+  low: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100',
+  medium:
+    'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100',
+  high: 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100',
+  urgent: 'bg-red-200 text-red-900 dark:bg-red-700 dark:text-red-100',
 };
 
 const statusColors = {
-  open: 'bg-green-100 text-green-800',
-  closed: 'bg-gray-100 text-gray-800',
-  pending: 'bg-yellow-100 text-yellow-800',
-  resolved: 'bg-blue-100 text-blue-800',
+  open: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
+  closed: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
+  pending:
+    'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
+  resolved: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
 };
 
 const departmentColors = {
-  sales: 'bg-orange-100 text-orange-800',
-  support: 'bg-purple-100 text-purple-800',
-  marketing: 'bg-pink-100 text-pink-800',
-  technical: 'bg-blue-100 text-blue-800',
+  sales:
+    'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300',
+  support:
+    'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300',
+  marketing: 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-300',
+  technical: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
 };
 
 export function TicketCard({
@@ -66,9 +70,9 @@ export function TicketCard({
     >
       <div className='flex items-start gap-3'>
         {/* Avatar */}
-        <Avatar className='h-8 w-8 shrink-0 border border-blue-200'>
+        <Avatar className='h-8 w-8 shrink-0 border border-blue-200 dark:border-blue-600'>
           <AvatarImage src={ticket.userAvatar} />
-          <AvatarFallback className='bg-blue-100 text-blue-600 text-xs font-medium'>
+          <AvatarFallback className='bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300 text-xs font-medium'>
             {getInitials(ticket.userName)}
           </AvatarFallback>
         </Avatar>

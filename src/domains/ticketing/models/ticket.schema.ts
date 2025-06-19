@@ -155,8 +155,8 @@ export const mockTickets: Ticket[] = [
     status: 'pending',
     priority: 'medium',
     department: 'technical',
-    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-    updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+    createdAt: new Date('2024-06-23T06:00:00Z'), // 2 hours ago from 8am
+    updatedAt: new Date('2024-06-23T06:00:00Z'),
     userId: 'user5',
     userName: 'Sarah Johnson',
     userEmail: 'sarah.johnson@example.com',
@@ -170,8 +170,8 @@ export const mockTickets: Ticket[] = [
     status: 'open',
     priority: 'low',
     department: 'technical',
-    createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000), // 6 hours ago
-    updatedAt: new Date(Date.now() - 6 * 60 * 60 * 1000),
+    createdAt: new Date('2024-06-23T02:00:00Z'), // 6 hours ago from 8am
+    updatedAt: new Date('2024-06-23T02:00:00Z'),
     userId: 'user6',
     userName: 'Mike Chen',
     userEmail: 'mike.chen@example.com',
@@ -185,8 +185,8 @@ export const mockTickets: Ticket[] = [
     status: 'pending',
     priority: 'medium',
     department: 'sales',
-    createdAt: new Date(Date.now() - 12 * 60 * 60 * 1000), // 12 hours ago
-    updatedAt: new Date(Date.now() - 12 * 60 * 60 * 1000),
+    createdAt: new Date('2024-06-22T20:00:00Z'), // 12 hours ago from 8am
+    updatedAt: new Date('2024-06-22T20:00:00Z'),
     userId: 'user7',
     userName: 'Lisa Rodriguez',
     userEmail: 'lisa.rodriguez@example.com',

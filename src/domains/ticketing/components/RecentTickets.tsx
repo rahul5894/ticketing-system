@@ -30,7 +30,11 @@ export function RecentTickets({
 
   // Helper function to check if ticket is new (created within last 24 hours)
   const isNewTicket = (ticket: Ticket) => {
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    // Use a fixed reference date to avoid hydration mismatches
+    const referenceDate = new Date('2024-06-23T08:00:00Z');
+    const twentyFourHoursAgo = new Date(
+      referenceDate.getTime() - 24 * 60 * 60 * 1000
+    );
     return ticket.createdAt > twentyFourHoursAgo;
   };
 
@@ -86,7 +90,7 @@ export function RecentTickets({
       <CollapsibleTrigger asChild>
         <Button
           variant='ghost'
-          className='w-full justify-between p-4 h-auto font-normal shrink-0 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-none cursor-pointer bg-gray-50 dark:bg-gray-800/50 data-[state=open]:border-b data-[state=open]:border-gray-200 dark:data-[state=open]:border-gray-700'
+          className='w-full justify-between px-6 py-4 h-auto font-normal shrink-0 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-none cursor-pointer bg-gray-50 dark:bg-gray-900 data-[state=open]:border-b data-[state=open]:border-gray-200 dark:data-[state=open]:border-gray-700'
         >
           <div className='flex items-center gap-2'>
             <div className={`w-2 h-2 rounded-full ${sectionColors[section]}`} />
