@@ -1,8 +1,18 @@
-import { z } from "zod"
+import { z } from 'zod';
 
-export const TicketStatusSchema = z.enum(["open", "closed", "pending", "resolved"])
-export const TicketPrioritySchema = z.enum(["low", "medium", "high", "urgent"])
-export const DepartmentSchema = z.enum(["sales", "support", "marketing", "technical"])
+export const TicketStatusSchema = z.enum([
+  'open',
+  'closed',
+  'pending',
+  'resolved',
+]);
+export const TicketPrioritySchema = z.enum(['low', 'medium', 'high', 'urgent']);
+export const DepartmentSchema = z.enum([
+  'sales',
+  'support',
+  'marketing',
+  'technical',
+]);
 
 export const AttachmentSchema = z.object({
   id: z.string(),
@@ -11,7 +21,7 @@ export const AttachmentSchema = z.object({
   size: z.number(),
   url: z.string(),
   uploadedAt: z.date(),
-})
+});
 
 export const TicketMessageSchema = z.object({
   id: z.string(),
@@ -21,7 +31,7 @@ export const TicketMessageSchema = z.object({
   authorAvatar: z.string().optional(),
   createdAt: z.date(),
   attachments: z.array(AttachmentSchema).default([]),
-})
+});
 
 export const TicketSchema = z.object({
   id: z.string(),
@@ -38,102 +48,290 @@ export const TicketSchema = z.object({
   userAvatar: z.string().optional(),
   messages: z.array(TicketMessageSchema).default([]),
   attachments: z.array(AttachmentSchema).default([]),
-})
+});
 
-export type Ticket = z.infer<typeof TicketSchema>
-export type TicketStatus = z.infer<typeof TicketStatusSchema>
-export type TicketPriority = z.infer<typeof TicketPrioritySchema>
-export type Department = z.infer<typeof DepartmentSchema>
-export type Attachment = z.infer<typeof AttachmentSchema>
-export type TicketMessage = z.infer<typeof TicketMessageSchema>
+export type Ticket = z.infer<typeof TicketSchema>;
+export type TicketStatus = z.infer<typeof TicketStatusSchema>;
+export type TicketPriority = z.infer<typeof TicketPrioritySchema>;
+export type Department = z.infer<typeof DepartmentSchema>;
+export type Attachment = z.infer<typeof AttachmentSchema>;
+export type TicketMessage = z.infer<typeof TicketMessageSchema>;
 
 // Mock data for development
 export const mockTickets: Ticket[] = [
   {
-    id: "1",
-    title: "Help needed for payment failure",
-    description: "I need help to process the payment via my VISA card.",
-    status: "open",
-    priority: "high",
-    department: "sales",
-    createdAt: new Date("2024-06-23T08:00:00Z"),
-    updatedAt: new Date("2024-06-23T08:00:00Z"),
-    userId: "user1",
-    userName: "Dean Taylor",
-    userEmail: "dean.taylor@gmail.com",
+    id: '1',
+    title: 'Help needed for payment failure',
+    description: 'I need help to process the payment via my VISA card.',
+    status: 'open',
+    priority: 'high',
+    department: 'sales',
+    createdAt: new Date('2024-06-23T08:00:00Z'),
+    updatedAt: new Date('2024-06-23T08:00:00Z'),
+    userId: 'user1',
+    userName: 'Dean Taylor',
+    userEmail: 'dean.taylor@gmail.com',
     userAvatar: undefined,
     messages: [
       {
-        id: "msg1",
-        content: "Hi,\n\nI need help to process the payment via my VISA card.\n\nIts returning failed payment after the checkout. I need to send out this campaign within today. can you please help ASAP.\n\nThanks",
-        authorId: "user1",
-        authorName: "Dean Taylor",
-        createdAt: new Date("2024-06-23T08:00:00Z"),
+        id: 'msg1',
+        content:
+          'Hi,\n\nI need help to process the payment via my VISA card.\n\nIts returning failed payment after the checkout. I need to send out this campaign within today. can you please help ASAP.\n\nThanks',
+        authorId: 'user1',
+        authorName: 'Dean Taylor',
+        createdAt: new Date('2024-06-23T08:00:00Z'),
         attachments: [
           {
-            id: "att1",
-            name: "doc.pdf",
-            type: "application/pdf",
+            id: 'att1',
+            name: 'doc.pdf',
+            type: 'application/pdf',
             size: 29000,
-            url: "/files/doc.pdf",
-            uploadedAt: new Date("2024-06-23T08:00:00Z"),
+            url: '/files/doc.pdf',
+            uploadedAt: new Date('2024-06-23T08:00:00Z'),
           },
           {
-            id: "att2",
-            name: "image.jpg",
-            type: "image/jpeg",
+            id: 'att2',
+            name: 'image.jpg',
+            type: 'image/jpeg',
             size: 30000,
-            url: "/files/image.jpg",
-            uploadedAt: new Date("2024-06-23T08:00:00Z"),
-          }
-        ]
-      }
+            url: '/files/image.jpg',
+            uploadedAt: new Date('2024-06-23T08:00:00Z'),
+          },
+        ],
+      },
     ],
-    attachments: []
+    attachments: [],
   },
   {
-    id: "2",
-    title: "Account access issue",
-    description: "Hi, I have recently come across your website...",
-    status: "open",
-    priority: "high",
-    department: "marketing",
-    createdAt: new Date("2024-06-23T07:55:00Z"),
-    updatedAt: new Date("2024-06-23T07:55:00Z"),
-    userId: "user2",
-    userName: "Jenny Wilson",
-    userEmail: "jenny.wilson@example.com",
+    id: '2',
+    title: 'Account access issue',
+    description: 'Hi, I have recently come across your website...',
+    status: 'open',
+    priority: 'high',
+    department: 'marketing',
+    createdAt: new Date('2024-06-23T07:55:00Z'),
+    updatedAt: new Date('2024-06-23T07:55:00Z'),
+    userId: 'user2',
+    userName: 'Jenny Wilson',
+    userEmail: 'jenny.wilson@example.com',
     messages: [],
-    attachments: []
+    attachments: [],
   },
   {
-    id: "3",
-    title: "Account locked out",
-    description: "Hi, I am locked out of my account. It says...",
-    status: "open",
-    priority: "high",
-    department: "support",
-    createdAt: new Date("2024-06-23T07:52:00Z"),
-    updatedAt: new Date("2024-06-23T07:52:00Z"),
-    userId: "user3",
-    userName: "Blake Gilmore",
-    userEmail: "blake.gilmore@example.com",
+    id: '3',
+    title: 'Account locked out',
+    description: 'Hi, I am locked out of my account. It says...',
+    status: 'open',
+    priority: 'high',
+    department: 'support',
+    createdAt: new Date('2024-06-23T07:52:00Z'),
+    updatedAt: new Date('2024-06-23T07:52:00Z'),
+    userId: 'user3',
+    userName: 'Blake Gilmore',
+    userEmail: 'blake.gilmore@example.com',
     messages: [],
-    attachments: []
+    attachments: [],
   },
   {
-    id: "4",
-    title: "Account upgrade help",
-    description: "Hi, I need help to upgrade my account. I...",
-    status: "open",
-    priority: "medium",
-    department: "sales",
-    createdAt: new Date("2024-06-23T07:50:00Z"),
-    updatedAt: new Date("2024-06-23T07:50:00Z"),
-    userId: "user4",
-    userName: "Robert Gulliver",
-    userEmail: "robert.gulliver@example.com",
+    id: '4',
+    title: 'Account upgrade help',
+    description: 'Hi, I need help to upgrade my account. I...',
+    status: 'open',
+    priority: 'medium',
+    department: 'sales',
+    createdAt: new Date('2024-06-23T07:50:00Z'),
+    updatedAt: new Date('2024-06-23T07:50:00Z'),
+    userId: 'user4',
+    userName: 'Robert Gulliver',
+    userEmail: 'robert.gulliver@example.com',
     messages: [],
-    attachments: []
-  }
-]
+    attachments: [],
+  },
+  // New tickets (created within last 24 hours)
+  {
+    id: '5',
+    title: 'Website loading issue',
+    description: 'The website is loading very slowly on my browser...',
+    status: 'pending',
+    priority: 'medium',
+    department: 'technical',
+    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
+    updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+    userId: 'user5',
+    userName: 'Sarah Johnson',
+    userEmail: 'sarah.johnson@example.com',
+    messages: [],
+    attachments: [],
+  },
+  {
+    id: '6',
+    title: 'Feature request for mobile app',
+    description: 'I would like to request a new feature for the mobile app...',
+    status: 'open',
+    priority: 'low',
+    department: 'technical',
+    createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000), // 6 hours ago
+    updatedAt: new Date(Date.now() - 6 * 60 * 60 * 1000),
+    userId: 'user6',
+    userName: 'Mike Chen',
+    userEmail: 'mike.chen@example.com',
+    messages: [],
+    attachments: [],
+  },
+  {
+    id: '7',
+    title: 'Billing inquiry',
+    description: 'I have a question about my recent billing statement...',
+    status: 'pending',
+    priority: 'medium',
+    department: 'sales',
+    createdAt: new Date(Date.now() - 12 * 60 * 60 * 1000), // 12 hours ago
+    updatedAt: new Date(Date.now() - 12 * 60 * 60 * 1000),
+    userId: 'user7',
+    userName: 'Lisa Rodriguez',
+    userEmail: 'lisa.rodriguez@example.com',
+    messages: [],
+    attachments: [],
+  },
+  // Closed tickets
+  {
+    id: '8',
+    title: 'Password reset completed',
+    description: 'Thank you for helping me reset my password.',
+    status: 'resolved',
+    priority: 'low',
+    department: 'support',
+    createdAt: new Date('2024-06-22T14:30:00Z'),
+    updatedAt: new Date('2024-06-22T16:45:00Z'),
+    userId: 'user8',
+    userName: 'Tom Wilson',
+    userEmail: 'tom.wilson@example.com',
+    messages: [],
+    attachments: [],
+  },
+  {
+    id: '9',
+    title: 'Refund processed successfully',
+    description: 'My refund request has been processed. Thank you!',
+    status: 'closed',
+    priority: 'medium',
+    department: 'sales',
+    createdAt: new Date('2024-06-21T10:15:00Z'),
+    updatedAt: new Date('2024-06-22T09:30:00Z'),
+    userId: 'user9',
+    userName: 'Emma Davis',
+    userEmail: 'emma.davis@example.com',
+    messages: [],
+    attachments: [],
+  },
+  {
+    id: '10',
+    title: 'Technical issue resolved',
+    description: 'The technical issue with my account has been fixed.',
+    status: 'resolved',
+    priority: 'high',
+    department: 'technical',
+    createdAt: new Date('2024-06-20T16:20:00Z'),
+    updatedAt: new Date('2024-06-21T11:45:00Z'),
+    userId: 'user10',
+    userName: 'Alex Thompson',
+    userEmail: 'alex.thompson@example.com',
+    messages: [],
+    attachments: [],
+  },
+  {
+    id: '11',
+    title: 'Account verification completed',
+    description: 'My account verification process is now complete.',
+    status: 'closed',
+    priority: 'medium',
+    department: 'support',
+    createdAt: new Date('2024-06-19T09:00:00Z'),
+    updatedAt: new Date('2024-06-20T14:30:00Z'),
+    userId: 'user11',
+    userName: 'Rachel Green',
+    userEmail: 'rachel.green@example.com',
+    messages: [],
+    attachments: [],
+  },
+  // Additional open tickets for scroll testing
+  {
+    id: '12',
+    title: 'Integration API documentation request',
+    description:
+      'I need detailed documentation for the REST API integration...',
+    status: 'open',
+    priority: 'medium',
+    department: 'technical',
+    createdAt: new Date('2024-06-22T11:30:00Z'),
+    updatedAt: new Date('2024-06-22T11:30:00Z'),
+    userId: 'user12',
+    userName: 'David Kim',
+    userEmail: 'david.kim@example.com',
+    messages: [],
+    attachments: [],
+  },
+  {
+    id: '13',
+    title: 'Subscription plan change request',
+    description:
+      'I would like to upgrade my subscription to the premium plan...',
+    status: 'open',
+    priority: 'low',
+    department: 'sales',
+    createdAt: new Date('2024-06-22T09:15:00Z'),
+    updatedAt: new Date('2024-06-22T09:15:00Z'),
+    userId: 'user13',
+    userName: 'Maria Garcia',
+    userEmail: 'maria.garcia@example.com',
+    messages: [],
+    attachments: [],
+  },
+  {
+    id: '14',
+    title: 'Email notification settings issue',
+    description:
+      'I am not receiving email notifications for important updates...',
+    status: 'open',
+    priority: 'medium',
+    department: 'support',
+    createdAt: new Date('2024-06-21T16:45:00Z'),
+    updatedAt: new Date('2024-06-21T16:45:00Z'),
+    userId: 'user14',
+    userName: 'James Wilson',
+    userEmail: 'james.wilson@example.com',
+    messages: [],
+    attachments: [],
+  },
+  {
+    id: '15',
+    title: 'Custom domain setup assistance',
+    description: 'I need help setting up a custom domain for my account...',
+    status: 'open',
+    priority: 'high',
+    department: 'technical',
+    createdAt: new Date('2024-06-21T14:20:00Z'),
+    updatedAt: new Date('2024-06-21T14:20:00Z'),
+    userId: 'user15',
+    userName: 'Sophie Anderson',
+    userEmail: 'sophie.anderson@example.com',
+    messages: [],
+    attachments: [],
+  },
+  {
+    id: '16',
+    title: 'Data export functionality question',
+    description:
+      'How can I export my data in CSV format? I cannot find the option...',
+    status: 'open',
+    priority: 'low',
+    department: 'support',
+    createdAt: new Date('2024-06-21T10:30:00Z'),
+    updatedAt: new Date('2024-06-21T10:30:00Z'),
+    userId: 'user16',
+    userName: 'Michael Brown',
+    userEmail: 'michael.brown@example.com',
+    messages: [],
+    attachments: [],
+  },
+];
