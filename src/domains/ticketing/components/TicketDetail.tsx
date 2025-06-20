@@ -47,10 +47,11 @@ import {
   TicketPriority,
   Department,
 } from '../models/ticket.schema';
+import { useRolePermissions } from '@/domains/auth/hooks/useRolePermissions';
+import { SupportOnly } from '@/domains/auth/components/RoleGuard';
 
 interface TicketDetailProps {
   ticket: Ticket;
-  isAdmin?: boolean;
   onTicketUpdate?: (ticketId: string, updates: Partial<Ticket>) => void;
 }
 
@@ -387,11 +388,8 @@ function AttachmentItem({ attachment }: { attachment: Attachment }) {
   );
 }
 
-export function TicketDetail({
-  ticket,
-  isAdmin = false,
-  onTicketUpdate,
-}: TicketDetailProps) {
+export function TicketDetail({ ticket, onTicketUpdate }: TicketDetailProps) {
+  const { permissions } = useRolePermissions();
   const getInitials = (name: string) => {
     return name
       .split(' ')
@@ -437,16 +435,18 @@ export function TicketDetail({
             <h1 className='text-xl font-semibold text-gray-900 dark:text-gray-100'>
               {ticket.title}
             </h1>
-            <Select defaultValue='ticket-actions'>
-              <SelectTrigger className='w-40'>
-                <SelectValue placeholder='Ticket actions' />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value='ticket-actions'>Ticket actions</SelectItem>
-                <SelectItem value='close'>Close ticket</SelectItem>
-                <SelectItem value='assign'>Assign to agent</SelectItem>
-              </SelectContent>
-            </Select>
+            <SupportOnly fallback={null}>
+              <Select defaultValue='ticket-actions'>
+                <SelectTrigger className='w-40'>
+                  <SelectValue placeholder='Ticket actions' />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='ticket-actions'>Ticket actions</SelectItem>
+                  <SelectItem value='close'>Close ticket</SelectItem>
+                  <SelectItem value='assign'>Assign to agent</SelectItem>
+                </SelectContent>
+              </Select>
+            </SupportOnly>
           </div>
 
           {/* Status badges */}
@@ -457,12 +457,12 @@ export function TicketDetail({
             <InteractivePriorityBadge
               currentPriority={ticket.priority}
               onPriorityChange={handlePriorityChange}
-              isAdmin={isAdmin}
+              isAdmin={permissions.canChangeTicketPriority}
             />
             <InteractiveDepartmentBadge
               currentDepartment={ticket.department}
               onDepartmentChange={handleDepartmentChange}
-              isAdmin={isAdmin}
+              isAdmin={permissions.canChangeTicketDepartment}
             />
           </div>
         </div>

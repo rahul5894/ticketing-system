@@ -10,6 +10,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useTheme } from './ThemeProvider';
+import { useRolePermissions } from '@/domains/auth/hooks/useRolePermissions';
+import { useAuth } from '@/domains/auth/hooks/useAuth';
 import {
   ChevronRight,
   Search,
@@ -22,6 +24,10 @@ import {
   Bell,
   Moon,
   Sun,
+  Users,
+  BarChart3,
+  Shield,
+  LogOut,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -30,22 +36,86 @@ interface SidebarProps {
 }
 
 const navigationItems = [
-  { icon: Home, label: 'Dashboard', href: '/' },
-  { icon: Search, label: 'Search', href: '/search' },
-  { icon: MessageSquare, label: 'Messages', href: '/messages' },
-  { icon: Ticket, label: 'Tickets', href: '/tickets', active: true },
-  { icon: Grid3X3, label: 'Apps', href: '/apps' },
-  { icon: Clock, label: 'History', href: '/history' },
-  { icon: Settings, label: 'Settings', href: '/settings' },
+  {
+    icon: Home,
+    label: 'Dashboard',
+    href: '/',
+    roles: ['user', 'admin', 'support'],
+  },
+  {
+    icon: Search,
+    label: 'Search',
+    href: '/search',
+    roles: ['user', 'admin', 'support'],
+  },
+  {
+    icon: MessageSquare,
+    label: 'Messages',
+    href: '/messages',
+    roles: ['user', 'admin', 'support'],
+  },
+  {
+    icon: Ticket,
+    label: 'Tickets',
+    href: '/tickets',
+    active: true,
+    roles: ['user', 'admin', 'support'],
+  },
+  {
+    icon: Grid3X3,
+    label: 'Apps',
+    href: '/apps',
+    roles: ['user', 'admin', 'support'],
+  },
+  {
+    icon: Clock,
+    label: 'History',
+    href: '/history',
+    roles: ['user', 'admin', 'support'],
+  },
+  { icon: Users, label: 'Users', href: '/users', roles: ['admin', 'support'] },
+  {
+    icon: BarChart3,
+    label: 'Analytics',
+    href: '/analytics',
+    roles: ['admin', 'support'],
+  },
+  { icon: Shield, label: 'Admin Panel', href: '/admin', roles: ['admin'] },
+  {
+    icon: Settings,
+    label: 'Settings',
+    href: '/settings',
+    roles: ['user', 'admin', 'support'],
+  },
 ];
 
 const bottomNavigationItems = [
-  { icon: Bell, label: 'Notifications', href: '/notifications' },
+  {
+    icon: Bell,
+    label: 'Notifications',
+    href: '/notifications',
+    roles: ['user', 'admin', 'support'],
+  },
 ];
 
 export function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const { theme, setTheme } = useTheme();
+  const { hasAnyRole, currentRole } = useRolePermissions();
+  const { signOut } = useAuth();
   const [isHovered, setIsHovered] = useState(false);
+
+  // Filter navigation items based on user role
+  const filteredNavigationItems = navigationItems.filter(
+    (item) =>
+      !currentRole ||
+      hasAnyRole(item.roles as Array<'user' | 'admin' | 'support'>)
+  );
+
+  const filteredBottomNavigationItems = bottomNavigationItems.filter(
+    (item) =>
+      !currentRole ||
+      hasAnyRole(item.roles as Array<'user' | 'admin' | 'support'>)
+  );
 
   const toggleTheme = () => {
     setTheme(theme === 'light' ? 'dark' : 'light');
@@ -82,7 +152,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
 
         {/* Navigation */}
         <nav className='flex-1 mt-2 space-y-0.5 px-1.5'>
-          {navigationItems.map((item) => {
+          {filteredNavigationItems.map((item) => {
             const Icon = item.icon;
             const isExpanded = isOpen || isHovered;
             return (
@@ -133,7 +203,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
         {/* Bottom navigation items */}
         <div className='space-y-0.5 px-1 pb-1'>
           {/* Notification icon */}
-          {bottomNavigationItems.map((item) => {
+          {filteredBottomNavigationItems.map((item) => {
             const Icon = item.icon;
             const isExpanded = isOpen || isHovered;
             return (
@@ -207,6 +277,40 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
                 )}
                 <span className='ml-3 truncate opacity-100 transition-opacity duration-300'>
                   {theme === 'light' ? 'Dark Mode' : 'Light Mode'}
+                </span>
+              </Button>
+            )}
+          </div>
+
+          {/* Logout button */}
+          <div>
+            {!(isOpen || isHovered) ? (
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant='ghost'
+                    onClick={signOut}
+                    className='w-full text-gray-300 hover:bg-red-800 hover:text-white h-10 transition-all duration-300 justify-start px-3'
+                  >
+                    <LogOut className='h-1.25rem w-1.25rem shrink-0' />
+                    <span className='ml-3 truncate opacity-0 transition-opacity duration-300 w-0 overflow-hidden'>
+                      Sign Out
+                    </span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side='right' className='ml-0.5rem'>
+                  Sign Out
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <Button
+                variant='ghost'
+                onClick={signOut}
+                className='w-full text-gray-300 hover:bg-red-800 hover:text-white h-10 transition-all duration-300 justify-start px-3'
+              >
+                <LogOut className='h-1.25rem w-1.25rem shrink-0' />
+                <span className='ml-3 truncate opacity-100 transition-opacity duration-300'>
+                  Sign Out
                 </span>
               </Button>
             )}
