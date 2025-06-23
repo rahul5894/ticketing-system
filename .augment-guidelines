@@ -134,7 +134,6 @@
 ## 12. Final Code Validation Before Summary
 
 - **Run ESLint and TypeScript checks** on all newly created or modified files before providing the final summary or submitting code changes.
-- **Automatically fix errors** detected by ESLint and TypeScript wherever possible.
 - **Ensure zero linting and type errors** in all affected files before finalizing any code delivery.
 - This step guarantees clean, error-free code that meets project quality standards before review or deployment.
 

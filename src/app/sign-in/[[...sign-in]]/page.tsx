@@ -86,7 +86,7 @@ export default function SignInPage() {
   if (domainInfo?.isLocalhost && !domainInfo?.isSubdomain) {
     return (
       <div className='min-h-screen flex items-center justify-center bg-gray-50'>
-        <div className='max-w-md w-full space-y-8 p-8'>
+        <div className='max-w-4/12 w-full space-y-8 p-8'>
           <div className='text-center'>
             <h1 className='text-4xl font-bold text-gray-900 mb-4'>
               Welcome to QuantumNest
@@ -101,7 +101,7 @@ export default function SignInPage() {
                 Available Organization:
               </h3>
               <ul className='text-sm text-blue-700 space-y-1'>
-                <li>• quantumnest.localhost:3000</li>
+                <li>quantumnest.localhost:3000</li>
               </ul>
             </div>
           </div>
