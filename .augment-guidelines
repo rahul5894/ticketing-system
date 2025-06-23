@@ -146,29 +146,11 @@
   npx eslint . --ext .js,.jsx,.ts,.tsx
   ```
 
-- **Auto-fix ESLint errors:**
-
-  ```bash
-  npx eslint . --ext .js,.jsx,.ts,.tsx --fix
-  ```
-
 - **Check TypeScript errors:**
 
   ```bash
   npx tsc --noEmit
   ```
-
-- **Run both sequentially (auto-fix then type check):**
-
-  ```bash
-  npx eslint . --ext .js,.jsx,.ts,.tsx --fix && npx tsc --noEmit
-  ```
-
-- **VS Code GUI:**
-
-  Use the Problems panel (`View` → `Problems` or `Ctrl+Shift+M` / `Cmd+Shift+M`) to see errors and navigate to them directly.
-
----
 
 ## 13. Minimalism & Precision in Code Generation
 

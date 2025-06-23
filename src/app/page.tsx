@@ -79,7 +79,7 @@ export default function Home() {
                 <h3 className='text-lg font-medium text-blue-800 mb-4'>
                   Demo Organizations Available:
                 </h3>
-                <div className='grid gap-4 md:grid-cols-2'>
+                <div className='grid'>
                   <div className='bg-white rounded-lg p-4 border border-blue-200'>
                     <h4 className='font-medium text-blue-900 mb-2'>
                       Quantum Nest
