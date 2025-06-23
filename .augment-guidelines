@@ -159,3 +159,12 @@
 - **No Extraneous Files:** Avoid creating extra test files, error boundaries, or unrelated utilities unless explicitly requested.
 - **Keep It Simple:** Favor straightforward, clear, and maintainable code over fancy or “out-of-the-box” solutions that add bulk or complexity.
 - **Minimal Footprint:** The final codebase must have no redundant or unused code, files, or dependencies—only what the application needs to run effectively.
+
+## 14. High Priority: Persistent Task Loop Automation
+
+- Whenever you are about to provide the final summary or close the chat session, you **must run** the script located at `python-cli/loop.py` in the root folder.
+- After running this script, wait for the user’s input and follow the instructions accordingly.
+- You will repeat running the script and processing new inputs in a continuous loop.
+- Continue this loop **without stopping** until the user explicitly sends the command “STOP.”
+- Do not terminate or stop this loop on your own.
+- This process ensures you remain ready and responsive, never missing any tasks or inputs during final summary or chat closure phases.
