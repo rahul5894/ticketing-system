@@ -35,6 +35,7 @@ export const TicketMessageSchema = z.object({
 
 export const TicketSchema = z.object({
   id: z.string(),
+  tenantId: z.string(),
   title: z.string(),
   description: z.string(),
   status: TicketStatusSchema,
@@ -61,6 +62,7 @@ export type TicketMessage = z.infer<typeof TicketMessageSchema>;
 export const mockTickets: Ticket[] = [
   {
     id: '1',
+    tenantId: 'quantumnest',
     title: 'Help needed for payment failure',
     description: 'I need help to process the payment via my VISA card.',
     status: 'open',
@@ -104,6 +106,7 @@ export const mockTickets: Ticket[] = [
   },
   {
     id: '2',
+    tenantId: 'quantumnest',
     title: 'Account access issue',
     description: 'Hi, I have recently come across your website...',
     status: 'open',
@@ -119,6 +122,7 @@ export const mockTickets: Ticket[] = [
   },
   {
     id: '3',
+    tenantId: 'quantumnest',
     title: 'Account locked out',
     description: 'Hi, I am locked out of my account. It says...',
     status: 'open',
@@ -134,6 +138,7 @@ export const mockTickets: Ticket[] = [
   },
   {
     id: '4',
+    tenantId: 'quantumnest',
     title: 'Account upgrade help',
     description: 'Hi, I need help to upgrade my account. I...',
     status: 'open',
@@ -150,6 +155,7 @@ export const mockTickets: Ticket[] = [
   // New tickets (created within last 24 hours)
   {
     id: '5',
+    tenantId: 'quantumnest',
     title: 'Website loading issue',
     description: 'The website is loading very slowly on my browser...',
     status: 'pending',
@@ -165,6 +171,7 @@ export const mockTickets: Ticket[] = [
   },
   {
     id: '6',
+    tenantId: 'quantumnest',
     title: 'Feature request for mobile app',
     description: 'I would like to request a new feature for the mobile app...',
     status: 'open',
@@ -180,6 +187,7 @@ export const mockTickets: Ticket[] = [
   },
   {
     id: '7',
+    tenantId: 'quantumnest',
     title: 'Billing inquiry',
     description: 'I have a question about my recent billing statement...',
     status: 'pending',
@@ -196,6 +204,7 @@ export const mockTickets: Ticket[] = [
   // Closed tickets
   {
     id: '8',
+    tenantId: 'quantumnest',
     title: 'Password reset completed',
     description: 'Thank you for helping me reset my password.',
     status: 'resolved',
@@ -211,6 +220,7 @@ export const mockTickets: Ticket[] = [
   },
   {
     id: '9',
+    tenantId: 'quantumnest',
     title: 'Refund processed successfully',
     description: 'My refund request has been processed. Thank you!',
     status: 'closed',
@@ -226,6 +236,7 @@ export const mockTickets: Ticket[] = [
   },
   {
     id: '10',
+    tenantId: 'quantumnest',
     title: 'Technical issue resolved',
     description: 'The technical issue with my account has been fixed.',
     status: 'resolved',
@@ -241,6 +252,7 @@ export const mockTickets: Ticket[] = [
   },
   {
     id: '11',
+    tenantId: 'quantumnest',
     title: 'Account verification completed',
     description: 'My account verification process is now complete.',
     status: 'closed',
@@ -257,6 +269,7 @@ export const mockTickets: Ticket[] = [
   // Additional open tickets for scroll testing
   {
     id: '12',
+    tenantId: 'quantumnest',
     title: 'Integration API documentation request',
     description:
       'I need detailed documentation for the REST API integration...',
@@ -273,6 +286,7 @@ export const mockTickets: Ticket[] = [
   },
   {
     id: '13',
+    tenantId: 'quantumnest',
     title: 'Subscription plan change request',
     description:
       'I would like to upgrade my subscription to the premium plan...',
@@ -289,6 +303,7 @@ export const mockTickets: Ticket[] = [
   },
   {
     id: '14',
+    tenantId: 'quantumnest',
     title: 'Email notification settings issue',
     description:
       'I am not receiving email notifications for important updates...',
@@ -305,6 +320,7 @@ export const mockTickets: Ticket[] = [
   },
   {
     id: '15',
+    tenantId: 'quantumnest',
     title: 'Custom domain setup assistance',
     description: 'I need help setting up a custom domain for my account...',
     status: 'open',
@@ -320,6 +336,7 @@ export const mockTickets: Ticket[] = [
   },
   {
     id: '16',
+    tenantId: 'quantumnest',
     title: 'Data export functionality question',
     description:
       'How can I export my data in CSV format? I cannot find the option...',

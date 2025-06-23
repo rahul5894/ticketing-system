@@ -10,6 +10,7 @@ import {
   TooltipTrigger,
 } from '@/features/shared/components/ui/tooltip';
 import { useTheme } from './ThemeProvider';
+import { useAuthActions } from '@/features/shared/hooks/useAuth';
 import {
   ChevronRight,
   Search,
@@ -22,6 +23,7 @@ import {
   Bell,
   Moon,
   Sun,
+  LogOut,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -45,6 +47,7 @@ const bottomNavigationItems = [
 
 export function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const { theme, setTheme } = useTheme();
+  const { signOut } = useAuthActions();
   const [isHovered, setIsHovered] = useState(false);
 
   const toggleTheme = () => {
@@ -207,6 +210,40 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
                 )}
                 <span className='ml-3 truncate opacity-100 transition-opacity duration-300'>
                   {theme === 'light' ? 'Dark Mode' : 'Light Mode'}
+                </span>
+              </Button>
+            )}
+          </div>
+
+          {/* Logout button */}
+          <div>
+            {!(isOpen || isHovered) ? (
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant='ghost'
+                    onClick={signOut}
+                    className='w-full text-gray-300 hover:bg-red-800 hover:text-white h-10 transition-all duration-300 justify-start px-3'
+                  >
+                    <LogOut className='h-1.25rem w-1.25rem shrink-0' />
+                    <span className='ml-3 truncate opacity-0 transition-opacity duration-300 w-0 overflow-hidden'>
+                      Logout
+                    </span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side='right' className='ml-0.5rem'>
+                  Logout
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <Button
+                variant='ghost'
+                onClick={signOut}
+                className='w-full text-gray-300 hover:bg-red-800 hover:text-white h-10 transition-all duration-300 justify-start px-3'
+              >
+                <LogOut className='h-1.25rem w-1.25rem shrink-0' />
+                <span className='ml-3 truncate opacity-100 transition-opacity duration-300'>
+                  Logout
                 </span>
               </Button>
             )}

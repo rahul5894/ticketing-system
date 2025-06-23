@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
+import { ClerkProvider } from '@clerk/nextjs';
 import { ThemeProvider } from '@/features/shared/components/ThemeProvider';
+import { SessionValidator } from '@/features/shared/components/SessionValidator';
 import './globals.css';
 
 const geistSans = Geist({
@@ -14,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Support Ticketing System',
+  title: 'QuantumNest',
   description: 'Modern support ticketing system built with Next.js',
 };
 
@@ -24,14 +26,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang='en' suppressHydrationWarning>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <ThemeProvider defaultTheme='light' storageKey='ticketing-theme'>
-          {children}
-        </ThemeProvider>
-      </body>
-    </html>
+    <ClerkProvider>
+      <html lang='en' suppressHydrationWarning>
+        <body
+          className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+          suppressHydrationWarning
+        >
+          <ThemeProvider defaultTheme='light' storageKey='ticketing-theme'>
+            <SessionValidator>{children}</SessionValidator>
+          </ThemeProvider>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }
