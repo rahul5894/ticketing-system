@@ -1,7 +1,11 @@
 'use client';
 
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from '@/features/shared/components/ui/avatar';
+import { Badge } from '@/features/shared/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { Ticket } from '../models/ticket.schema';

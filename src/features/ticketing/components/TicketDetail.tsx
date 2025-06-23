@@ -1,17 +1,21 @@
 'use client';
 
 import { useState } from 'react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from '@/features/shared/components/ui/avatar';
+import { Badge } from '@/features/shared/components/ui/badge';
+import { Button } from '@/features/shared/components/ui/button';
+import { Textarea } from '@/features/shared/components/ui/textarea';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from '@/features/shared/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -19,8 +23,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Separator } from '@/components/ui/separator';
+} from '@/features/shared/components/ui/dialog';
+import { Separator } from '@/features/shared/components/ui/separator';
 import {
   Bold,
   Italic,

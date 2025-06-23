@@ -1,19 +1,19 @@
 'use client';
 
 import { useState } from 'react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
+import { Input } from '@/features/shared/components/ui/input';
+import { Button } from '@/features/shared/components/ui/button';
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from '@/components/ui/collapsible';
+} from '@/features/shared/components/ui/collapsible';
 import { Search, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import { TicketCard } from './TicketCard';
 import { mockTickets, Ticket } from '../models/ticket.schema';
 
 interface RecentTicketsProps {
-  selectedTicketId?: string;
+  selectedTicketId?: string | null;
   onTicketSelect?: (ticketId: string) => void;
   tickets?: Ticket[];
 }

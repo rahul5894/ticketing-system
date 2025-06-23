@@ -1,7 +1,7 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
+import { Button } from '@/features/shared/components/ui/button';
+import { Separator } from '@/features/shared/components/ui/separator';
 import { FileText, Image as ImageIcon, ExternalLink, Edit } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -253,4 +253,3 @@ export function VisitorInformation() {
     </div>
   );
 }
-
