@@ -92,7 +92,7 @@ export function InteractiveGridPattern({
           className
         )}
         style={{
-          transform: 'skew(0deg, 12deg) scale(1)',
+          transform: 'skew(0deg, 12deg)',
           transformOrigin: 'center',
 
           willChange: 'transform',

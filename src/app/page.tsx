@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
+import { useRouter } from 'next/navigation';
 import { getDomainFromWindow, DomainInfoState } from '@/lib/domain';
 
 export default function Home() {
   const { user, isLoaded } = useUser();
+  const router = useRouter();
   const [domainInfo, setDomainInfo] = useState<DomainInfoState>(null);
 
   useEffect(() => {
@@ -25,17 +27,17 @@ export default function Home() {
     if (domainInfo.isSubdomain) {
       if (user) {
         // Authenticated user, redirect to tickets
-        window.location.href = '/tickets';
+        router.replace('/tickets');
       } else {
         // Unauthenticated user, redirect to sign-in
-        window.location.href = '/sign-in';
+        router.replace('/sign-in');
       }
       return;
     }
 
     // For root domain without subdomain, redirect to sign-in
-    window.location.href = '/sign-in';
-  }, [isLoaded, user, domainInfo]);
+    router.replace('/sign-in');
+  }, [isLoaded, user, domainInfo, router]);
 
   // Show loading while checking authentication and domain
   if (!isLoaded || !domainInfo) {

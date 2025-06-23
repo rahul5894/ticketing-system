@@ -4,6 +4,7 @@ import { useUser, useAuth as useClerkAuth } from '@clerk/nextjs';
 import { useTenant } from '@/features/tenant/context/TenantContext';
 import { getDomainFromWindow, DomainInfoState } from '@/lib/domain';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Tenant } from '@/features/tenant/models/tenant.schema';
 
 export interface AuthState {
@@ -106,43 +107,56 @@ export function usePermissions() {
 }
 
 /**
- * Hook for authentication actions
+ * Hook for authentication actions with smooth transitions
  */
 export function useAuthActions() {
   const { signOut } = useClerkAuth();
   const { domainInfo } = useAuth();
+  const router = useRouter();
 
   const handleSignOut = async () => {
-    await signOut();
+    try {
+      await signOut();
 
-    // Redirect based on domain
-    if (domainInfo?.isLocalhost) {
-      window.location.href = '/';
-    } else {
+      // Use programmatic navigation for smooth transitions
+      if (domainInfo?.isLocalhost) {
+        router.replace('/');
+      } else {
+        router.replace('/sign-in');
+      }
+    } catch (error) {
+      console.error('Sign out error:', error);
+      // Fallback to window.location only on error
       window.location.href = '/sign-in';
     }
   };
 
   const redirectToSignIn = () => {
-    window.location.href = '/sign-in';
+    router.push('/sign-in');
   };
 
   const redirectToSignUp = () => {
-    window.location.href = '/sign-up';
+    router.push('/sign-up');
+  };
+
+  const redirectToTickets = () => {
+    router.push('/tickets');
   };
 
   return {
     signOut: handleSignOut,
     redirectToSignIn,
     redirectToSignUp,
+    redirectToTickets,
   };
 }
 
 /**
- * Hook for protecting components that require authentication
+ * Hook for protecting components that require authentication with smooth transitions
  */
 export function useRequireAuth() {
   const { isLoaded, isSignedIn, requiresAuth } = useAuth();
+  const router = useRouter();
   const [shouldRedirect, setShouldRedirect] = useState(false);
 
   useEffect(() => {
@@ -153,9 +167,9 @@ export function useRequireAuth() {
 
   useEffect(() => {
     if (shouldRedirect) {
-      window.location.href = '/sign-in';
+      router.replace('/sign-in');
     }
-  }, [shouldRedirect]);
+  }, [shouldRedirect, router]);
 
   return {
     isLoading: !isLoaded,
