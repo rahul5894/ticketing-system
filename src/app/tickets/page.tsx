@@ -6,10 +6,21 @@ import Link from 'next/link';
 import { AppLayout } from '@/features/shared/components/AppLayout';
 import { RecentTickets } from '@/features/ticketing/components/RecentTickets';
 import { TicketDetail } from '@/features/ticketing/components/TicketDetail';
+import { CreateTicketForm } from '@/features/ticketing/components/CreateTicketForm';
 import { VisitorInformation } from '@/features/visitor/components/VisitorInformation';
 import { useTicketingStore } from '@/features/ticketing/store/use-ticketing-store';
 import { TenantProvider } from '@/features/tenant/context/TenantContext';
 import { getDomainFromWindow, DomainInfoState } from '@/lib/domain';
+
+interface CreateTicketFormData {
+  title: string;
+  description: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  department: 'sales' | 'support' | 'marketing' | 'technical';
+  assignedTo: string[];
+  cc?: string | undefined;
+  attachments: File[];
+}
 
 function TicketsPageContent() {
   const { user, isLoaded } = useUser();
@@ -17,11 +28,15 @@ function TicketsPageContent() {
     selectedTicketId,
     selectTicket,
     updateTicket,
+    addTicket,
     getTicketsForTenant,
     setTenantId,
   } = useTicketingStore();
+  // const tenantIdFromContext = useTenantId(); // TODO: Use this when implementing proper tenant context
   const [domainInfo, setDomainInfo] = useState<DomainInfoState>(null);
   const [tenantId, setCurrentTenantId] = useState<string | null>(null);
+  const [isCreatingTicket, setIsCreatingTicket] = useState(false);
+  const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
 
   useEffect(() => {
     setDomainInfo(getDomainFromWindow());
@@ -83,6 +98,72 @@ function TicketsPageContent() {
     (ticket) => ticket.id === selectedTicketId
   );
 
+  // Handle create ticket
+  const handleCreateTicket = () => {
+    setIsCreatingTicket(true);
+  };
+
+  const handleCancelCreateTicket = () => {
+    setIsCreatingTicket(false);
+  };
+
+  const handleSubmitTicket = async (data: CreateTicketFormData) => {
+    if (!user) return;
+
+    setIsSubmittingTicket(true);
+
+    try {
+      // Convert File objects to Attachment format
+      const attachments = data.attachments.map((file, index) => ({
+        id: `att_${Date.now()}_${index}`,
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        url: URL.createObjectURL(file), // Temporary URL for demo
+        uploadedAt: new Date(),
+      }));
+
+      // Create the ticket data
+      const ticketData = {
+        tenantId: tenantId || 'localhost',
+        title: data.title,
+        description: data.description,
+        status: 'open' as const,
+        priority: data.priority,
+        department: data.department,
+        userId: user.id,
+        userName: user.fullName || user.firstName || 'Unknown User',
+        userEmail: user.primaryEmailAddress?.emailAddress || '',
+        userAvatar: user.imageUrl,
+        messages: [
+          {
+            id: `msg_${Date.now()}`,
+            content: data.description,
+            authorId: user.id,
+            authorName: user.fullName || user.firstName || 'Unknown User',
+            authorAvatar: user.imageUrl,
+            createdAt: new Date(),
+            attachments: attachments,
+          },
+        ],
+        attachments: attachments,
+      };
+
+      // Add the ticket to the store
+      const newTicketId = addTicket(ticketData);
+
+      // Reset form state
+      setIsCreatingTicket(false);
+      setIsSubmittingTicket(false);
+
+      // Select the new ticket
+      selectTicket(newTicketId);
+    } catch (error) {
+      console.error('Failed to create ticket:', error);
+      setIsSubmittingTicket(false);
+    }
+  };
+
   return (
     <AppLayout rightSidebar={<VisitorInformation />}>
       <div className='flex h-full'>
@@ -91,13 +172,20 @@ function TicketsPageContent() {
           <RecentTickets
             selectedTicketId={selectedTicketId}
             onTicketSelect={selectTicket}
+            onCreateTicket={handleCreateTicket}
             tickets={tickets}
           />
         </div>
 
-        {/* Main Content - Ticket Detail */}
+        {/* Main Content - Ticket Detail or Create Form */}
         <div className='flex-1 px-6 h-full overflow-hidden'>
-          {selectedTicket ? (
+          {isCreatingTicket ? (
+            <CreateTicketForm
+              onSubmit={handleSubmitTicket}
+              onCancel={handleCancelCreateTicket}
+              isSubmitting={isSubmittingTicket}
+            />
+          ) : selectedTicket ? (
             <TicketDetail
               ticket={selectedTicket}
               isAdmin={isAdmin}

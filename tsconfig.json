@@ -2,19 +2,15 @@
   "compilerOptions": {
     /* Language and Environment */
     "target": "ES2023",
-    "lib": [
-      "DOM",
-      "DOM.Iterable",
-      "ES2023"
-    ],
+    "lib": ["DOM", "DOM.Iterable", "ES2023"],
     /* Modules */
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "baseUrl": "./src",
     "paths": {
-      "@/*": [
-        "*"
-      ]
+      "@/*": ["*"],
+      "@/components/*": ["features/shared/components/*"],
+      "@/ui/*": ["features/shared/components/ui/*"]
     },
     /* JavaScript Support */
     "allowJs": false,
@@ -45,13 +41,6 @@
       }
     ]
   },
-  "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules"
-  ]
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
 }

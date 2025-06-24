@@ -6,8 +6,8 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
-import { InteractiveGridPattern } from '@/components/ui/interactive-grid-pattern';
-import { LoadingScreen } from '@/components/ui/loading-screen';
+import { InteractiveGridPattern } from '@/features/shared/components/ui/interactive-grid-pattern';
+import { LoadingScreen } from '@/features/shared/components/ui/loading-screen';
 
 export default function SignInPage() {
   const [domainInfo, setDomainInfo] = useState<DomainInfoState>(null);

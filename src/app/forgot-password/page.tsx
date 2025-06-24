@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useSignIn } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { InteractiveGridPattern } from '@/components/ui/interactive-grid-pattern';
+import { InteractiveGridPattern } from '@/features/shared/components/ui/interactive-grid-pattern';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');

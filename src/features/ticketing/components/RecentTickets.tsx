@@ -8,13 +8,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/features/shared/components/ui/collapsible';
-import { Search, Filter, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, Filter, ChevronDown, ChevronUp, Plus } from 'lucide-react';
 import { TicketCard } from './TicketCard';
 import { mockTickets, Ticket } from '../models/ticket.schema';
 
 interface RecentTicketsProps {
   selectedTicketId?: string | null;
   onTicketSelect?: (ticketId: string) => void;
+  onCreateTicket?: () => void;
   tickets?: Ticket[];
 }
 
@@ -23,6 +24,7 @@ type AccordionSection = 'new' | 'open' | 'closed';
 export function RecentTickets({
   selectedTicketId,
   onTicketSelect,
+  onCreateTicket,
   tickets = mockTickets,
 }: RecentTicketsProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -126,9 +128,19 @@ export function RecentTickets({
     <div className='w-full max-w-md bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 h-full flex flex-col shadow-lg shadow-gray-200/50 dark:shadow-gray-900/50'>
       {/* Header */}
       <div className='p-6 border-b border-gray-200 dark:border-gray-700 shrink-0'>
-        <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4'>
-          Recent Tickets
-        </h2>
+        <div className='flex items-center justify-between mb-4'>
+          <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
+            Recent Tickets
+          </h2>
+          <Button
+            onClick={onCreateTicket}
+            size='sm'
+            className='bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-600 dark:hover:bg-blue-700'
+          >
+            <Plus className='h-4 w-4 mr-2' />
+            Create New Ticket
+          </Button>
+        </div>
 
         {/* Search and Filter */}
         <div className='flex gap-2 items-center'>

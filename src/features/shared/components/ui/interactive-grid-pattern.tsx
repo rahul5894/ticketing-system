@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils';
 import React, { useState, useCallback, useMemo } from 'react';
-import { NoSSR } from './no-ssr';
+import { NoSSR } from '@/components/ui/no-ssr';
 
 /**
  * InteractiveGridPattern is a component that renders a grid pattern with interactive squares.

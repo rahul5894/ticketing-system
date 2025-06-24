@@ -8,6 +8,7 @@ interface TicketingState {
   setTenantId: (tenantId: string | null) => void;
   selectTicket: (ticketId: string) => void;
   updateTicket: (ticketId: string, updates: Partial<Ticket>) => void;
+  addTicket: (ticket: Omit<Ticket, 'id' | 'createdAt' | 'updatedAt'>) => string;
   getTicketsForTenant: (tenantId: string | null) => Ticket[];
 }
 
@@ -28,6 +29,27 @@ export const useTicketingStore = create<TicketingState>((set, get) => ({
           : ticket
       ),
     })),
+
+  addTicket: (ticketData) => {
+    const newTicketId = `ticket_${Date.now()}_${Math.random()
+      .toString(36)
+      .substr(2, 9)}`;
+    const now = new Date();
+
+    const newTicket: Ticket = {
+      ...ticketData,
+      id: newTicketId,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    set((state) => ({
+      tickets: [newTicket, ...state.tickets],
+      selectedTicketId: newTicketId,
+    }));
+
+    return newTicketId;
+  },
 
   getTicketsForTenant: (tenantId) => {
     const state = get();
