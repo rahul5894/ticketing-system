@@ -11,6 +11,15 @@ import { VisitorInformation } from '@/features/visitor/components/VisitorInforma
 import { useTicketingStore } from '@/features/ticketing/store/use-ticketing-store';
 import { TenantProvider } from '@/features/tenant/context/TenantContext';
 import { getDomainFromWindow, DomainInfoState } from '@/lib/domain';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/features/shared/components/ui/dialog';
+import { Button } from '@/features/shared/components/ui/button';
 
 interface CreateTicketFormData {
   title: string;
@@ -37,6 +46,8 @@ function TicketsPageContent() {
   const [tenantId, setCurrentTenantId] = useState<string | null>(null);
   const [isCreatingTicket, setIsCreatingTicket] = useState(false);
   const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
+  const [showDraftConfirmation, setShowDraftConfirmation] = useState(false);
+  const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
 
   useEffect(() => {
     setDomainInfo(getDomainFromWindow());
@@ -103,6 +114,54 @@ function TicketsPageContent() {
     setIsCreatingTicket(true);
   };
 
+  // Handle ticket selection with draft confirmation
+  const handleTicketSelect = (ticketId: string) => {
+    if (isCreatingTicket) {
+      // Check if there's any form data that might be lost
+      const draftData = localStorage.getItem('ticket-draft');
+      if (draftData) {
+        // Show confirmation dialog
+        setPendingTicketId(ticketId);
+        setShowDraftConfirmation(true);
+      } else {
+        // No draft data, proceed directly
+        setIsCreatingTicket(false);
+        selectTicket(ticketId);
+      }
+    } else {
+      // Not in create mode, proceed normally
+      selectTicket(ticketId);
+    }
+  };
+
+  // Handle draft confirmation - Save Changes
+  const handleSaveChanges = () => {
+    setShowDraftConfirmation(false);
+    setIsCreatingTicket(false);
+    if (pendingTicketId) {
+      selectTicket(pendingTicketId);
+      setPendingTicketId(null);
+    }
+  };
+
+  // Handle draft confirmation - Discard Changes
+  const handleDiscardChanges = () => {
+    // Clear the draft
+    localStorage.removeItem('ticket-draft');
+    setShowDraftConfirmation(false);
+    setIsCreatingTicket(false);
+    if (pendingTicketId) {
+      selectTicket(pendingTicketId);
+      setPendingTicketId(null);
+    }
+  };
+
+  // Handle dialog close
+  const handleDialogClose = () => {
+    setShowDraftConfirmation(false);
+    setPendingTicketId(null);
+  };
+
   const handleSubmitTicket = async (data: CreateTicketFormData) => {
     if (!user) return;
 
@@ -167,7 +226,7 @@ function TicketsPageContent() {
         <div className='w-96 shrink-0 h-full'>
           <RecentTickets
             selectedTicketId={selectedTicketId}
-            onTicketSelect={selectTicket}
+            onTicketSelect={handleTicketSelect}
             onCreateTicket={handleCreateTicket}
             tickets={tickets}
           />
@@ -195,6 +254,25 @@ function TicketsPageContent() {
           )}
         </div>
       </div>
+
+      {/* Draft Confirmation Dialog */}
+      <Dialog open={showDraftConfirmation} onOpenChange={handleDialogClose}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Save Your Changes?</DialogTitle>
+            <DialogDescription>
+              You have unsaved changes in your ticket draft. What would you like
+              to do?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className='gap-2'>
+            <Button variant='outline' onClick={handleDiscardChanges}>
+              Discard Changes
+            </Button>
+            <Button onClick={handleSaveChanges}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

@@ -686,8 +686,8 @@ Lisa'
                     <AtSign className='h-4 w-4' />
                   </Button>
                 </div>
-                <Button className='bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white dark:text-white'>
-                  <Send className='h-4 w-4 mr-1 text-white dark:text-white' />
+                <Button>
+                  <Send className='h-4 w-4 mr-1' />
                   Send
                 </Button>
               </div>

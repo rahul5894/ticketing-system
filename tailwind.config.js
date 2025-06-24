@@ -10,6 +10,7 @@ const config = {
   ],
   theme: {
     extend: {
+      /* ---------- COLORS ---------- */
       colors: {
         background: {
           DEFAULT: '#ffffff',
@@ -20,12 +21,20 @@ const config = {
           dark: '#e5e7eb',
         },
       },
+
+      /* ---------- FONTS ---------- */
       fontFamily: {
-        sans: ['Inter', 'sans-serif'],
+        // Geist variables are injected by next/font in app/layout.tsx
+        sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-mono)', 'monospace'],
       },
+
+      /* ---------- BREAKPOINTS ---------- */
       screens: {
         lg: '1024px',
       },
+
+      /* ---------- ANIMATION ---------- */
       animation: {
         fadeIn: 'fadeIn 0.3s ease-in-out',
         shimmer: 'shimmer 2s infinite',
@@ -40,6 +49,8 @@ const config = {
           '100%': { transform: 'translateX(100%)' },
         },
       },
+
+      /* ---------- GRADIENTS ---------- */
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
       },

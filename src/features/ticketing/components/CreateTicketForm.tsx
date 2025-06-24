@@ -40,7 +40,9 @@ import {
   Smile,
   AtSign,
   Send,
+  Trash2,
 } from 'lucide-react';
+import { useDraftPersistence } from '../hooks/useDraftPersistence';
 
 // Types
 type TicketPriority = 'low' | 'medium' | 'high' | 'urgent';
@@ -93,9 +95,6 @@ export function CreateTicketForm({
 }: CreateTicketFormProps) {
   // State
   const [attachments] = useState<File[]>([]);
-  const [description, setDescription] = useState(
-    'Hi Dean,\n\nThank you for contacting us. We sure can help you. Shall we schedule a call tomorrow around 12:00pm. We can help you better if we are on a call.\n\nPlease let us know your availability.\n\nThanks\nLisa'
-  );
 
   // Form setup
   const form = useForm<CreateTicketFormData>({
@@ -111,9 +110,28 @@ export function CreateTicketForm({
     },
   });
 
+  // Draft persistence
+  const { clearDraft } = useDraftPersistence(form);
+
   // Handlers
   const handleSubmit = (data: CreateTicketFormData) => {
+    // Clear draft before submitting
+    clearDraft();
     onSubmit({ ...data, attachments });
+  };
+
+  const handleDiscard = () => {
+    // Clear draft and reset form
+    clearDraft();
+    form.reset({
+      title: '',
+      description: '',
+      priority: 'high',
+      department: 'marketing',
+      assignedTo: [],
+      cc: '',
+      attachments: [],
+    });
   };
 
   return (
@@ -414,11 +432,7 @@ export function CreateTicketForm({
                 render={({ field }) => (
                   <Textarea
                     {...field}
-                    value={description}
-                    onChange={(e) => {
-                      setDescription(e.target.value);
-                      field.onChange(e.target.value);
-                    }}
+                    placeholder='Describe the issue in detail...'
                     className='min-h-32 resize-none border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800'
                   />
                 )}
@@ -452,15 +466,25 @@ export function CreateTicketForm({
                     <AtSign className='h-4 w-4' />
                   </Button>
                 </div>
-                <Button
-                  type='submit'
-                  disabled={isSubmitting}
-                  onClick={form.handleSubmit(handleSubmit)}
-                  className='bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white dark:text-white'
-                >
-                  <Send className='h-4 w-4 mr-1 text-white dark:text-white' />
-                  {isSubmitting ? 'Creating...' : 'Create Ticket'}
-                </Button>
+                <div className='flex items-center gap-2'>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    onClick={handleDiscard}
+                    disabled={isSubmitting}
+                  >
+                    <Trash2 className='h-4 w-4 mr-1' />
+                    Discard
+                  </Button>
+                  <Button
+                    type='submit'
+                    disabled={isSubmitting}
+                    onClick={form.handleSubmit(handleSubmit)}
+                  >
+                    <Send className='h-4 w-4 mr-1' />
+                    {isSubmitting ? 'Creating...' : 'Create Ticket'}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
