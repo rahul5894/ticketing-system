@@ -1,3 +1,31 @@
+$ports = 3000..3010
+
+foreach ($port in $ports) {
+    $conns = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+    foreach ($conn in $conns) {
+        Write-Host "Killing process ID $($conn.OwningProcess) on port $port"
+Stop-Process -Id $conn.OwningProcess -Force
+}
+}
+
+---
+
+### ✅ Correct command (using commit hash):
+
+```bash
+git reset --hard 6523feb2773d530973b3a40909d28a7b62c5106b
+git push origin HEAD --force
+```
+
+---
+
+### Explanation:
+
+- `git reset --hard <commit>` moves your local branch (and working tree) to that specific commit.
+- `git push origin HEAD --force` tells Git to update the remote branch (e.g., `origin/main`) to match your current state — overwriting history.
+
+---
+
 I want you to proactively use the available MCP tools (Google Research AI, Context7, Sequential Thinking, and Task Management) throughout our development workflow according to these specific guidelines:
 
 **Research & Documentation Requirements:**

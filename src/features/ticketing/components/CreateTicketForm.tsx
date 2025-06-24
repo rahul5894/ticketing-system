@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -15,7 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/features/shared/components/ui/select';
-import { Badge } from '@/features/shared/components/ui/badge';
+
+import { Separator } from '@/features/shared/components/ui/separator';
 import {
   Form,
   FormControl,
@@ -26,25 +27,24 @@ import {
 } from '@/features/shared/components/ui/form';
 import { cn } from '@/lib/utils';
 import {
-  X,
+  Bold,
+  Italic,
+  Underline,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  List,
+  ListOrdered,
+  Link,
   Paperclip,
+  Smile,
+  AtSign,
   Send,
-  ArrowLeft,
-  FileText,
-  Image as ImageIcon,
-  ChevronDown,
 } from 'lucide-react';
 
 // Types
 type TicketPriority = 'low' | 'medium' | 'high' | 'urgent';
 type Department = 'sales' | 'support' | 'marketing' | 'technical';
-
-interface AssignedUser {
-  id: string;
-  name: string;
-  email: string;
-  avatar?: string;
-}
 
 interface CreateTicketFormData {
   title: string;
@@ -53,115 +53,49 @@ interface CreateTicketFormData {
   department: Department;
   assignedTo: string[];
   cc?: string | undefined;
+  attachments: File[];
 }
 
 interface CreateTicketFormProps {
   onSubmit: (data: CreateTicketFormData & { attachments: File[] }) => void;
-  onCancel: () => void;
   isSubmitting?: boolean;
 }
 
 // Form validation schema
 const CreateTicketFormSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200, 'Title too long'),
-  description: z
-    .string()
-    .min(1, 'Description is required')
-    .max(5000, 'Description too long'),
+  description: z.string().min(1, 'Description is required'),
   priority: z.enum(['low', 'medium', 'high', 'urgent']),
   department: z.enum(['sales', 'support', 'marketing', 'technical']),
   assignedTo: z.array(z.string()),
   cc: z.string().optional(),
+  attachments: z.array(z.instanceof(File)),
 });
 
-// Mock users for assignment autocomplete
-const mockUsers: AssignedUser[] = [
-  { id: 'user1', name: 'Sarah Johnson', email: 'sarah.johnson@company.com' },
-  { id: 'user2', name: 'Mike Chen', email: 'mike.chen@company.com' },
-  { id: 'user3', name: 'Emily Davis', email: 'emily.davis@company.com' },
-  { id: 'user4', name: 'Alex Rodriguez', email: 'alex.rodriguez@company.com' },
-  { id: 'user5', name: 'David Wilson', email: 'david.wilson@company.com' },
-  { id: 'user6', name: 'Lisa Thompson', email: 'lisa.thompson@company.com' },
-  { id: 'user7', name: 'James Brown', email: 'james.brown@company.com' },
-  { id: 'user8', name: 'Maria Garcia', email: 'maria.garcia@company.com' },
-];
-
-// Priority options
-const priorityOptions = [
-  {
-    value: 'low' as const,
-    label: 'Low Priority',
-    description: 'Standard support requests',
-  },
-  {
-    value: 'medium' as const,
-    label: 'Medium Priority',
-    description: 'Important but not urgent',
-  },
-  {
-    value: 'high' as const,
-    label: 'High Priority',
-    description: 'Urgent business impact',
-  },
-  {
-    value: 'urgent' as const,
-    label: 'Urgent',
-    description: 'Critical system issues',
-  },
-];
-
-// Department options
-const departmentOptions = [
-  {
-    value: 'sales' as const,
-    label: 'Sales Department',
-    description: 'Sales inquiries and support',
-  },
-  {
-    value: 'support' as const,
-    label: 'Support Department',
-    description: 'Technical support requests',
-  },
-  {
-    value: 'marketing' as const,
-    label: 'Marketing Department',
-    description: 'Marketing and campaigns',
-  },
-  {
-    value: 'technical' as const,
-    label: 'Technical Department',
-    description: 'Development and infrastructure',
-  },
-];
-
-// Color mappings
-const priorityColors = {
-  low: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
-  medium:
-    'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
-  high: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300',
-  urgent: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
+// Dot colors for dropdowns (matching TicketDetail)
+const priorityDotColors = {
+  low: 'bg-gray-500',
+  medium: 'bg-yellow-500',
+  high: 'bg-red-500',
+  urgent: 'bg-red-700',
 };
 
-const departmentColors = {
-  sales:
-    'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300',
-  support: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
-  marketing: 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-300',
-  technical: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
+const departmentDotColors = {
+  sales: 'bg-orange-500',
+  support: 'bg-purple-500',
+  marketing: 'bg-pink-500',
+  technical: 'bg-blue-500',
 };
 
 export function CreateTicketForm({
   onSubmit,
-  onCancel,
   isSubmitting = false,
 }: CreateTicketFormProps) {
   // State
-  const [attachments, setAttachments] = useState<File[]>([]);
-  const [assignedUsers, setAssignedUsers] = useState<AssignedUser[]>([]);
-  const [assigneeInput, setAssigneeInput] = useState('');
-  const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
-  const assigneeInputRef = useRef<HTMLInputElement>(null);
+  const [attachments] = useState<File[]>([]);
+  const [description, setDescription] = useState(
+    'Hi Dean,\n\nThank you for contacting us. We sure can help you. Shall we schedule a call tomorrow around 12:00pm. We can help you better if we are on a call.\n\nPlease let us know your availability.\n\nThanks\nLisa'
+  );
 
   // Form setup
   const form = useForm<CreateTicketFormData>({
@@ -169,10 +103,11 @@ export function CreateTicketForm({
     defaultValues: {
       title: '',
       description: '',
-      priority: 'medium',
-      department: 'support',
+      priority: 'high',
+      department: 'marketing',
       assignedTo: [],
       cc: '',
+      attachments: [],
     },
   });
 
@@ -181,419 +116,354 @@ export function CreateTicketForm({
     onSubmit({ ...data, attachments });
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    setAttachments((prev) => [...prev, ...files]);
-    event.target.value = '';
-  };
-
-  const removeAttachment = (index: number) => {
-    setAttachments((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-    return `${Math.round(bytes / (1024 * 1024))} MB`;
-  };
-
-  const getFileIcon = (file: File) => {
-    if (file.type.startsWith('image/')) {
-      return <ImageIcon className='h-4 w-4 text-blue-600 dark:text-blue-400' />;
-    }
-    return <FileText className='h-4 w-4 text-gray-600 dark:text-gray-400' />;
-  };
-
-  // Assignee management
-  const filteredUsers = mockUsers
-    .filter(
-      (user) =>
-        user.name.toLowerCase().includes(assigneeInput.toLowerCase()) ||
-        user.email.toLowerCase().includes(assigneeInput.toLowerCase())
-    )
-    .filter(
-      (user) => !assignedUsers.some((assigned) => assigned.id === user.id)
-    );
-
-  const handleAssigneeInputChange = (value: string) => {
-    setAssigneeInput(value);
-    setShowAssigneeDropdown(value.includes('@') && value.length > 1);
-  };
-
-  const addAssignedUser = (user: AssignedUser) => {
-    const newAssignedUsers = [...assignedUsers, user];
-    setAssignedUsers(newAssignedUsers);
-    form.setValue(
-      'assignedTo',
-      newAssignedUsers.map((u) => u.id)
-    );
-    setAssigneeInput('');
-    setShowAssigneeDropdown(false);
-    assigneeInputRef.current?.focus();
-  };
-
-  const removeAssignedUser = (userId: string) => {
-    const newAssignedUsers = assignedUsers.filter((user) => user.id !== userId);
-    setAssignedUsers(newAssignedUsers);
-    form.setValue(
-      'assignedTo',
-      newAssignedUsers.map((u) => u.id)
-    );
-  };
-
-  const handleAssigneeKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === '@' && !assigneeInput.includes('@')) {
-      setAssigneeInput(assigneeInput + '@');
-      setShowAssigneeDropdown(true);
-    } else if (e.key === 'Escape') {
-      setShowAssigneeDropdown(false);
-    }
-  };
-
-  const selectedPriority = form.watch('priority');
-  const selectedDepartment = form.watch('department');
-
   return (
     <div className='flex-1 h-[calc(100%-3rem)] my-6 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col overflow-hidden'>
-      {/* Header */}
-      <div className='p-6 border-b border-gray-200 dark:border-gray-700 shrink-0'>
-        <div className='flex items-center justify-between mb-4'>
-          <div className='flex items-center gap-3'>
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={onCancel}
-              className='hover:bg-gray-100 dark:hover:bg-gray-700'
-            >
-              <ArrowLeft className='h-4 w-4 mr-2' />
-              Back
-            </Button>
+      <div className='flex-1 overflow-auto'>
+        {/* Header */}
+        <div className='p-6 border-b border-gray-200 dark:border-gray-700 shrink-0'>
+          <div className='flex items-center justify-between'>
             <h1 className='text-xl font-semibold text-gray-900 dark:text-gray-100'>
               Create New Ticket
             </h1>
-          </div>
-        </div>
-
-        {/* Preview badges */}
-        <div className='flex flex-wrap gap-2'>
-          <Badge className={cn('text-xs', priorityColors[selectedPriority])}>
-            {selectedPriority.charAt(0).toUpperCase() +
-              selectedPriority.slice(1)}{' '}
-            Priority
-          </Badge>
-          <Badge
-            className={cn('text-xs', departmentColors[selectedDepartment])}
-          >
-            {selectedDepartment.charAt(0).toUpperCase() +
-              selectedDepartment.slice(1)}{' '}
-            Department
-          </Badge>
-        </div>
-      </div>
-
-      {/* Form Content - Scrollable */}
-      <div className='flex-1 overflow-y-auto min-h-0'>
-        <div className='p-6'>
-          <Form {...form}>
-            <form
-              onSubmit={form.handleSubmit(handleSubmit)}
-              className='space-y-6'
-            >
-              {/* Title Field */}
+            <div className='flex items-center gap-2'>
+              {/* Priority Dropdown */}
               <FormField
                 control={form.control}
-                name='title'
+                name='priority'
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className='text-sm font-medium text-gray-900 dark:text-gray-100'>
-                      Title *
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder='Brief description of the issue'
-                        {...field}
-                        className='h-10'
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger
+                      className={cn(
+                        'inline-flex items-center justify-center rounded-md h-6 px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 gap-1 transition-[color,box-shadow] overflow-hidden',
+                        'border bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100',
+                        'hover:opacity-80 cursor-pointer'
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          'w-1.5 h-1.5 rounded-full mr-1',
+                          priorityDotColors[field.value]
+                        )}
                       />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+                      <SelectValue>
+                        {field.value.charAt(0).toUpperCase() +
+                          field.value.slice(1)}{' '}
+                        Priority
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value='low'>
+                        <div className='flex items-center gap-2 text-xs'>
+                          <div className='w-1.5 h-1.5 rounded-full mr-1 bg-gray-500' />
+                          Low Priority
+                        </div>
+                      </SelectItem>
+                      <SelectItem value='medium'>
+                        <div className='flex items-center gap-2 text-xs'>
+                          <div className='w-1.5 h-1.5 rounded-full mr-1 bg-yellow-500' />
+                          Medium Priority
+                        </div>
+                      </SelectItem>
+                      <SelectItem value='high'>
+                        <div className='flex items-center gap-2 text-xs'>
+                          <div className='w-1.5 h-1.5 rounded-full mr-1 bg-red-500' />
+                          High Priority
+                        </div>
+                      </SelectItem>
+                      <SelectItem value='urgent'>
+                        <div className='flex items-center gap-2 text-xs'>
+                          <div className='w-1.5 h-1.5 rounded-full mr-1 bg-red-700' />
+                          Urgent Priority
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 )}
               />
 
-              {/* Description Field */}
+              {/* Department Dropdown */}
+              <FormField
+                control={form.control}
+                name='department'
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger
+                      className={cn(
+                        'inline-flex items-center justify-center rounded-md h-6 px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 gap-1 transition-[color,box-shadow] overflow-hidden',
+                        'border bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100',
+                        'hover:opacity-80 cursor-pointer'
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          'w-1.5 h-1.5 mr-1 rounded-full',
+                          departmentDotColors[field.value]
+                        )}
+                      />
+                      <SelectValue>
+                        {field.value.charAt(0).toUpperCase() +
+                          field.value.slice(1)}{' '}
+                        Department
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value='sales'>
+                        <div className='flex items-center gap-2 text-xs'>
+                          <div className='w-1.5 h-1.5 mr-1 rounded-full bg-orange-500' />
+                          Sales Department
+                        </div>
+                      </SelectItem>
+                      <SelectItem value='support'>
+                        <div className='flex items-center gap-2 text-xs'>
+                          <div className='w-1.5 h-1.5 mr-1 rounded-full bg-purple-500' />
+                          Support Department
+                        </div>
+                      </SelectItem>
+                      <SelectItem value='marketing'>
+                        <div className='flex items-center gap-2 text-xs'>
+                          <div className='w-1.5 h-1.5 mr-1 rounded-full bg-pink-500' />
+                          Marketing Department
+                        </div>
+                      </SelectItem>
+                      <SelectItem value='technical'>
+                        <div className='flex items-center gap-2 text-xs'>
+                          <div className='w-1.5 h-1.5 mr-1 rounded-full bg-blue-500' />
+                          Technical Department
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Form Content - Scrollable */}
+        <div className='flex-1 overflow-y-auto min-h-0'>
+          <div className='p-6'>
+            <Form {...form}>
+              <form
+                onSubmit={form.handleSubmit(handleSubmit)}
+                className='space-y-4'
+              >
+                {/* Assign To Field */}
+                <div>
+                  <label className='text-sm font-medium text-gray-700 dark:text-gray-300 block mb-2'>
+                    Assign To
+                  </label>
+                  <Input
+                    placeholder='Type @ to mention users'
+                    className='h-10'
+                  />
+                </div>
+
+                {/* CC Field */}
+                <FormField
+                  control={form.control}
+                  name='cc'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className='text-sm font-medium text-gray-700 dark:text-gray-300'>
+                        CC (Email addresses)
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder='email1@example.com, email2@example.com'
+                          className='h-10'
+                          value={field.value || ''}
+                          onChange={field.onChange}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Title Field */}
+                <FormField
+                  control={form.control}
+                  name='title'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className='text-sm font-medium text-gray-700 dark:text-gray-300'>
+                        Title *
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder='Brief description of the issue'
+                          className='h-10'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </form>
+            </Form>
+          </div>
+        </div>
+
+        {/* Rich Text Editor Section - Fixed at bottom (matching TicketDetail) */}
+        <div className='border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shrink-0'>
+          <div className='p-6'>
+            <div className='space-y-4'>
+              {/* Clean two-line formatting toolbar (exactly like TicketDetail) */}
+              <div className='space-y-2'>
+                {/* First line - Paragraph selector and text formatting */}
+                <div className='flex items-center gap-1'>
+                  <Select defaultValue='paragraph'>
+                    <SelectTrigger className='w-32 h-8'>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value='paragraph'>Paragraph</SelectItem>
+                      <SelectItem value='heading1'>Heading 1</SelectItem>
+                      <SelectItem value='heading2'>Heading 2</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Separator orientation='vertical' className='h-6 mx-1' />
+
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='sm'
+                    className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  >
+                    <Bold className='h-4 w-4' />
+                  </Button>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='sm'
+                    className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  >
+                    <Italic className='h-4 w-4' />
+                  </Button>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='sm'
+                    className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  >
+                    <Underline className='h-4 w-4' />
+                  </Button>
+
+                  <Separator orientation='vertical' className='h-6 mx-1' />
+
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='sm'
+                    className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  >
+                    <AlignLeft className='h-4 w-4' />
+                  </Button>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='sm'
+                    className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  >
+                    <AlignCenter className='h-4 w-4' />
+                  </Button>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='sm'
+                    className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  >
+                    <AlignRight className='h-4 w-4' />
+                  </Button>
+
+                  <Separator orientation='vertical' className='h-6 mx-1' />
+
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='sm'
+                    className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  >
+                    <List className='h-4 w-4' />
+                  </Button>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='sm'
+                    className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  >
+                    <ListOrdered className='h-4 w-4' />
+                  </Button>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='sm'
+                    className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  >
+                    <Link className='h-4 w-4' />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Text area (exactly like TicketDetail) */}
               <FormField
                 control={form.control}
                 name='description'
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className='text-sm font-medium text-gray-900 dark:text-gray-100'>
-                      Description *
-                    </FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder='Provide detailed information about your request or issue...'
-                        className='min-h-[120px] resize-none'
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+                  <Textarea
+                    {...field}
+                    value={description}
+                    onChange={(e) => {
+                      setDescription(e.target.value);
+                      field.onChange(e.target.value);
+                    }}
+                    className='min-h-32 resize-none border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800'
+                  />
                 )}
               />
 
-              {/* Priority and Department Row */}
-              <div className='flex gap-3'>
-                <FormField
-                  control={form.control}
-                  name='priority'
-                  render={({ field }) => (
-                    <FormItem className='flex-1'>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger className='border-0 bg-gray-50 dark:bg-gray-700/40 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors'>
-                            <SelectValue placeholder='Select priority' />
-                            <ChevronDown className='h-4 w-4 opacity-50' />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {priorityOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              <div className='flex flex-col'>
-                                <span className='font-medium'>
-                                  {option.label}
-                                </span>
-                                <span className='text-xs text-gray-500 dark:text-gray-400'>
-                                  {option.description}
-                                </span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name='department'
-                  render={({ field }) => (
-                    <FormItem className='flex-1'>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger className='border-0 bg-gray-50 dark:bg-gray-700/40 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors'>
-                            <SelectValue placeholder='Select department' />
-                            <ChevronDown className='h-4 w-4 opacity-50' />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {departmentOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              <div className='flex flex-col'>
-                                <span className='font-medium'>
-                                  {option.label}
-                                </span>
-                                <span className='text-xs text-gray-500 dark:text-gray-400'>
-                                  {option.description}
-                                </span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {/* Assigned To Field */}
-              <div className='space-y-3'>
-                <FormLabel className='text-sm font-medium text-gray-900 dark:text-gray-100'>
-                  Assign To
-                </FormLabel>
-
-                {/* Assignee Input */}
-                <div className='relative'>
-                  <div className='flex items-center gap-2 p-3 border rounded-lg bg-gray-50 dark:bg-gray-700/40 border-gray-200 dark:border-gray-600 min-h-[44px] flex-wrap'>
-                    {/* Assigned Users Tags */}
-                    {assignedUsers.map((user) => (
-                      <div
-                        key={user.id}
-                        className='flex items-center gap-2 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-md text-sm'
-                      >
-                        <span>{user.name}</span>
-                        <button
-                          type='button'
-                          onClick={() => removeAssignedUser(user.id)}
-                          className='hover:bg-blue-200 dark:hover:bg-blue-800 rounded-full p-0.5'
-                        >
-                          <X className='h-3 w-3' />
-                        </button>
-                      </div>
-                    ))}
-
-                    {/* Input Field */}
-                    <input
-                      ref={assigneeInputRef}
-                      type='text'
-                      value={assigneeInput}
-                      onChange={(e) =>
-                        handleAssigneeInputChange(e.target.value)
-                      }
-                      onKeyDown={handleAssigneeKeyDown}
-                      placeholder={
-                        assignedUsers.length === 0
-                          ? 'Type @ to mention users'
-                          : ''
-                      }
-                      className='flex-1 min-w-[120px] bg-transparent border-0 outline-none text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400'
-                    />
-                  </div>
-
-                  {/* Autocomplete Dropdown */}
-                  {showAssigneeDropdown && filteredUsers.length > 0 && (
-                    <div className='absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto'>
-                      {filteredUsers.slice(0, 6).map((user) => (
-                        <button
-                          key={user.id}
-                          type='button'
-                          onClick={() => addAssignedUser(user)}
-                          className='w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 border-b border-gray-100 dark:border-gray-700 last:border-b-0'
-                        >
-                          <div className='w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-300 text-sm font-medium'>
-                            {user.name.charAt(0).toUpperCase()}
-                          </div>
-                          <div className='flex-1 min-w-0'>
-                            <p className='text-sm font-medium text-gray-900 dark:text-gray-100 truncate'>
-                              {user.name}
-                            </p>
-                            <p className='text-xs text-gray-500 dark:text-gray-400 truncate'>
-                              {user.email}
-                            </p>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* CC Field */}
-              <FormField
-                control={form.control}
-                name='cc'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className='text-sm font-medium text-gray-900 dark:text-gray-100'>
-                      CC (Email addresses)
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder='email1@example.com, email2@example.com'
-                        {...field}
-                        className='h-10'
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* File Attachments */}
-              <div className='space-y-3'>
-                <FormLabel className='text-sm font-medium text-gray-900 dark:text-gray-100'>
-                  Attachments
-                </FormLabel>
-
-                {/* File Upload Button */}
+              {/* Action buttons (exactly like TicketDetail) */}
+              <div className='flex items-center justify-between'>
                 <div className='flex items-center gap-2'>
                   <Button
                     type='button'
-                    variant='outline'
+                    variant='ghost'
                     size='sm'
-                    onClick={() =>
-                      document.getElementById('file-upload')?.click()
-                    }
-                    className='hover:bg-gray-50 dark:hover:bg-gray-700'
+                    className='hover:bg-gray-100 dark:hover:bg-gray-700'
                   >
-                    <Paperclip className='h-4 w-4 mr-2' />
-                    Add Files
+                    <Paperclip className='h-4 w-4' />
                   </Button>
-                  <span className='text-xs text-gray-500 dark:text-gray-400'>
-                    Max 10MB per file
-                  </span>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='sm'
+                    className='hover:bg-gray-100 dark:hover:bg-gray-700'
+                  >
+                    <Smile className='h-4 w-4' />
+                  </Button>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='sm'
+                    className='hover:bg-gray-100 dark:hover:bg-gray-700'
+                  >
+                    <AtSign className='h-4 w-4' />
+                  </Button>
                 </div>
-
-                <input
-                  id='file-upload'
-                  type='file'
-                  multiple
-                  className='hidden'
-                  onChange={handleFileUpload}
-                  accept='image/*,.pdf,.doc,.docx,.txt'
-                />
-
-                {/* Attachment List */}
-                {attachments.length > 0 && (
-                  <div className='space-y-2'>
-                    {attachments.map((file, index) => (
-                      <div
-                        key={index}
-                        className='flex items-center gap-3 p-3 border rounded-lg bg-gray-50 dark:bg-gray-700/40 border-gray-200 dark:border-gray-600'
-                      >
-                        <div className='flex items-center justify-center w-8 h-8 rounded bg-gray-100 dark:bg-gray-600'>
-                          {getFileIcon(file)}
-                        </div>
-                        <div className='flex-1 min-w-0'>
-                          <p className='text-sm font-medium text-gray-900 dark:text-gray-100 truncate'>
-                            {file.name}
-                          </p>
-                          <p className='text-xs text-gray-500 dark:text-gray-400'>
-                            {formatFileSize(file.size)}
-                          </p>
-                        </div>
-                        <Button
-                          type='button'
-                          variant='ghost'
-                          size='sm'
-                          onClick={() => removeAttachment(index)}
-                          className='shrink-0 hover:bg-gray-200 dark:hover:bg-gray-600'
-                        >
-                          <X className='h-4 w-4' />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Submit Button */}
-              <div className='flex justify-end pt-4 border-t border-gray-200 dark:border-gray-700'>
                 <Button
                   type='submit'
                   disabled={isSubmitting}
-                  className='bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-600 dark:hover:bg-blue-700'
+                  onClick={form.handleSubmit(handleSubmit)}
+                  className='bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white dark:text-white'
                 >
-                  {isSubmitting ? (
-                    <>Creating...</>
-                  ) : (
-                    <>
-                      <Send className='h-4 w-4 mr-2' />
-                      Create Ticket
-                    </>
-                  )}
+                  <Send className='h-4 w-4 mr-1 text-white dark:text-white' />
+                  {isSubmitting ? 'Creating...' : 'Create Ticket'}
                 </Button>
               </div>
-            </form>
-          </Form>
+            </div>
+          </div>
         </div>
       </div>
     </div>

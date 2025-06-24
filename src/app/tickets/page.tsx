@@ -103,10 +103,6 @@ function TicketsPageContent() {
     setIsCreatingTicket(true);
   };
 
-  const handleCancelCreateTicket = () => {
-    setIsCreatingTicket(false);
-  };
-
   const handleSubmitTicket = async (data: CreateTicketFormData) => {
     if (!user) return;
 
@@ -182,7 +178,6 @@ function TicketsPageContent() {
           {isCreatingTicket ? (
             <CreateTicketForm
               onSubmit={handleSubmitTicket}
-              onCancel={handleCancelCreateTicket}
               isSubmitting={isSubmittingTicket}
             />
           ) : selectedTicket ? (
