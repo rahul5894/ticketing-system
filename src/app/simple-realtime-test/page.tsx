@@ -5,12 +5,27 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import SimpleRealtimeTestClient from './simple-realtime-test-client';
 
+interface TestData {
+  id: string;
+  tenant_id: string;
+  message: string;
+  created_by: string | null;
+  created_at: string;
+}
+
+interface TenantData {
+  id: string;
+  name: string;
+  subdomain: string;
+  status: string;
+}
+
 export default function SimpleRealtimeTestPage() {
   const { isLoaded, userId } = useAuth();
-  const [tenant, setTenant] = useState(null);
-  const [initialTestData, setInitialTestData] = useState([]);
+  const [tenant, setTenant] = useState<TenantData | null>(null);
+  const [initialTestData, setInitialTestData] = useState<TestData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -24,30 +39,44 @@ export default function SimpleRealtimeTestPage() {
       try {
         // Extract subdomain from URL for tenant identification
         const hostname = window.location.hostname;
-        const subdomain = hostname.split('.')[0]; // e.g., 'quantumnest' from 'quantumnest.localhost'
+        const subdomainParts = hostname.split('.');
+        const subdomain = subdomainParts[0] || 'localhost'; // Default to 'localhost' if no subdomain
 
-        // Use subdomain-based tenant data (TEXT-based tenant_id)
-        const tenantData = {
-          id: subdomain, // Now using subdomain string as tenant_id
-          name: subdomain.charAt(0).toUpperCase() + subdomain.slice(1), // Capitalize first letter
-          subdomain: subdomain,
-          status: 'active',
-        };
-
-        setTenant(tenantData);
+        // Validate subdomain
+        if (!subdomain || subdomain === 'localhost') {
+          // For localhost development, use a default tenant
+          const defaultTenant: TenantData = {
+            id: 'quantumnest',
+            name: 'QuantumNest',
+            subdomain: 'quantumnest',
+            status: 'active',
+          };
+          setTenant(defaultTenant);
+        } else {
+          // Use subdomain-based tenant data (TEXT-based tenant_id)
+          const tenantData: TenantData = {
+            id: subdomain,
+            name: subdomain.charAt(0).toUpperCase() + subdomain.slice(1),
+            subdomain: subdomain,
+            status: 'active',
+          };
+          setTenant(tenantData);
+        }
 
         // Get initial test data using TEXT-based tenant_id
+        const tenantId = subdomain === 'localhost' ? 'quantumnest' : subdomain;
         const { data: testData, error: testDataError } = await supabase
           .from('realtime_test')
           .select('*')
-          .eq('tenant_id', tenantData.id) // Now using subdomain string
+          .eq('tenant_id', tenantId)
           .order('created_at', { ascending: false })
           .limit(10);
 
         setInitialTestData(testData || []);
         setError(testDataError?.message || null);
       } catch (err) {
-        setError(err.message);
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        setError(errorMessage);
       } finally {
         setLoading(false);
       }
@@ -109,4 +138,3 @@ export default function SimpleRealtimeTestPage() {
     </div>
   );
 }
-
