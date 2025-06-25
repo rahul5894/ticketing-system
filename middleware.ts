@@ -26,18 +26,33 @@ export default clerkMiddleware(async (auth, req) => {
   const subdomain = getSubdomain(hostname);
   const pathname = req.nextUrl.pathname;
 
+  // Create response object to add headers
+  const response = NextResponse.next();
+
+  // Set Content Security Policy for real-time WebSocket connections
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (supabaseUrl) {
+    const supabaseHostname = supabaseUrl
+      .replace('https://', '')
+      .replace('http://', '');
+    response.headers.set(
+      'Content-Security-Policy',
+      `connect-src 'self' https://${supabaseHostname} wss://${supabaseHostname} https://*.supabase.co wss://*.supabase.co;`
+    );
+  }
+
   // Skip static files and API routes
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api') ||
     pathname.includes('.')
   ) {
-    return NextResponse.next();
+    return response;
   }
 
   // Handle localhost without subdomain - allow all access for development
   if (hostname.includes('localhost') && !subdomain) {
-    return NextResponse.next();
+    return response;
   }
 
   // Handle subdomain access (both localhost and production)
@@ -53,16 +68,24 @@ export default clerkMiddleware(async (auth, req) => {
     const isAuthenticated = !!authResult.userId;
 
     // Define auth pages that don't require authentication
-    const authPages = ['/sign-in', '/sign-up', '/forgot-password', '/reset-password'];
-    const isAuthPage = authPages.some(page => pathname.startsWith(page));
+    const authPages = [
+      '/sign-in',
+      '/sign-up',
+      '/forgot-password',
+      '/reset-password',
+    ];
+    const isAuthPage = authPages.some((page) => pathname.startsWith(page));
 
     // If accessing auth pages
     if (isAuthPage) {
       // Redirect authenticated users away from sign-in/sign-up pages
-      if (isAuthenticated && (pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up'))) {
+      if (
+        isAuthenticated &&
+        (pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up'))
+      ) {
         return NextResponse.redirect(new URL('/tickets', req.url));
       }
-      return NextResponse.next();
+      return response;
     }
 
     // If accessing tickets page
@@ -70,7 +93,23 @@ export default clerkMiddleware(async (auth, req) => {
       if (!isAuthenticated) {
         return NextResponse.redirect(new URL('/sign-in', req.url));
       }
-      return NextResponse.next();
+      return response;
+    }
+
+    // If accessing test-integration page (for testing purposes)
+    if (pathname.startsWith('/test-integration')) {
+      if (!isAuthenticated) {
+        return NextResponse.redirect(new URL('/sign-in', req.url));
+      }
+      return response;
+    }
+
+    // If accessing simple-realtime-test page (for testing purposes)
+    if (pathname.startsWith('/simple-realtime-test')) {
+      if (!isAuthenticated) {
+        return NextResponse.redirect(new URL('/sign-in', req.url));
+      }
+      return response;
     }
 
     // For root subdomain access, redirect based on authentication
@@ -88,7 +127,7 @@ export default clerkMiddleware(async (auth, req) => {
     }
   }
 
-  return NextResponse.next();
+  return response;
 });
 
 export const config = {
