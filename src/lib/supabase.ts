@@ -28,11 +28,14 @@ interface TicketUpdate {
   updatedAt?: Date;
 }
 
+// Legacy Supabase client for basic operations
+// For real-time functionality, use useSupabaseClient hook from @/lib/supabase-client
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 /**
  * Tenant-aware Supabase client wrapper
  * Automatically filters queries by tenant_id to ensure data isolation
+ * Note: For real-time subscriptions, use useSupabaseClient hook instead
  */
 export class TenantSupabaseClient {
   private client: SupabaseClient;

@@ -1,5 +1,5 @@
 import { clerkMiddleware } from '@clerk/nextjs/server';
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 
 // Define allowed subdomains (organization slugs)
 const ALLOWED_SUBDOMAINS = ['quantumnest'];
@@ -21,27 +21,55 @@ function getSubdomain(hostname: string): string | null {
   return null;
 }
 
-export default clerkMiddleware(async (auth, req) => {
+export default clerkMiddleware(async (auth, req: NextRequest) => {
   const hostname = req.headers.get('host') || 'localhost:3000';
   const subdomain = getSubdomain(hostname);
   const pathname = req.nextUrl.pathname;
-
-  // Create response object to add headers
   const response = NextResponse.next();
 
-  // Set Content Security Policy for real-time WebSocket connections
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (supabaseUrl) {
-    const supabaseHostname = supabaseUrl
-      .replace('https://', '')
-      .replace('http://', '');
-    response.headers.set(
-      'Content-Security-Policy',
-      `connect-src 'self' https://${supabaseHostname} wss://${supabaseHostname} https://*.supabase.co wss://*.supabase.co;`
-    );
-  }
+  // Generate CSP directives matching enterprise-grade security
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseHost = new URL(supabaseUrl).hostname;
+  const nonce = crypto.randomUUID();
 
-  // Skip static files and API routes
+  const csp = [
+    "default-src 'self'",
+    `script-src 'self' https://clerk.catalystrcm.com https://*.clerk.accounts.dev https://${supabaseHost} 'unsafe-inline' ${
+      process.env.NODE_ENV === 'development' ? "'unsafe-eval'" : ''
+    }`,
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "img-src 'self' data: blob: https://img.clerk.com https://images.clerk.dev",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    `connect-src 'self' https://clerk.catalystrcm.com https://*.clerk.accounts.dev https://${supabaseHost} wss://${supabaseHost} https://*.supabase.co wss://*.supabase.co https://clerk-telemetry.com${
+      process.env.NODE_ENV === 'development'
+        ? ' http://localhost:* ws://localhost:*'
+        : ''
+    }`,
+    "frame-src 'self' https://clerk.catalystrcm.com https://*.clerk.accounts.dev",
+    "worker-src 'self' blob:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    'block-all-mixed-content',
+    'upgrade-insecure-requests',
+  ].join('; ');
+
+  response.headers.set('Content-Security-Policy', csp);
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set(
+    'Strict-Transport-Security',
+    'max-age=63072000; includeSubDomains; preload'
+  );
+  response.headers.set(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()'
+  );
+  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('X-Nonce', nonce);
+
+  // Skip static and API
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api') ||
@@ -50,79 +78,55 @@ export default clerkMiddleware(async (auth, req) => {
     return response;
   }
 
-  // Handle localhost without subdomain - allow all access for development
+  // Localhost dev (no subdomain)
   if (hostname.includes('localhost') && !subdomain) {
     return response;
   }
 
-  // Handle subdomain access (both localhost and production)
+  // Subdomain flows
   if (subdomain) {
-    // Check if subdomain is allowed
     if (!ALLOWED_SUBDOMAINS.includes(subdomain)) {
-      // Rewrite to not-found page for proper 404 handling
       return NextResponse.rewrite(new URL('/not-found', req.url));
     }
 
-    // Valid subdomain - check authentication
-    const authResult = await auth();
-    const isAuthenticated = !!authResult.userId;
-
-    // Define auth pages that don't require authentication
+    const { userId } = await auth();
+    const isAuth = Boolean(userId);
     const authPages = [
       '/sign-in',
       '/sign-up',
       '/forgot-password',
       '/reset-password',
     ];
-    const isAuthPage = authPages.some((page) => pathname.startsWith(page));
+    const isAuthPage = authPages.some((p) => pathname.startsWith(p));
 
-    // If accessing auth pages
     if (isAuthPage) {
-      // Redirect authenticated users away from sign-in/sign-up pages
       if (
-        isAuthenticated &&
-        (pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up'))
+        isAuth &&
+        ['/sign-in', '/sign-up'].some((p) => pathname.startsWith(p))
       ) {
         return NextResponse.redirect(new URL('/tickets', req.url));
       }
       return response;
     }
 
-    // If accessing tickets page
-    if (pathname.startsWith('/tickets')) {
-      if (!isAuthenticated) {
+    if (
+      ['/tickets', '/test-integration', '/simple-realtime-test'].some((p) =>
+        pathname.startsWith(p)
+      )
+    ) {
+      if (!isAuth) {
         return NextResponse.redirect(new URL('/sign-in', req.url));
       }
       return response;
     }
 
-    // If accessing test-integration page (for testing purposes)
-    if (pathname.startsWith('/test-integration')) {
-      if (!isAuthenticated) {
-        return NextResponse.redirect(new URL('/sign-in', req.url));
-      }
-      return response;
-    }
-
-    // If accessing simple-realtime-test page (for testing purposes)
-    if (pathname.startsWith('/simple-realtime-test')) {
-      if (!isAuthenticated) {
-        return NextResponse.redirect(new URL('/sign-in', req.url));
-      }
-      return response;
-    }
-
-    // For root subdomain access, redirect based on authentication
     if (pathname === '/') {
-      if (isAuthenticated) {
-        return NextResponse.redirect(new URL('/tickets', req.url));
-      } else {
-        return NextResponse.redirect(new URL('/sign-in', req.url));
-      }
+      return isAuth
+        ? NextResponse.redirect(new URL('/tickets', req.url))
+        : NextResponse.redirect(new URL('/sign-in', req.url));
     }
 
-    // For any other routes on valid subdomain, require authentication
-    if (!isAuthenticated) {
+    if (!isAuth) {
       return NextResponse.redirect(new URL('/sign-in', req.url));
     }
   }
@@ -132,9 +136,7 @@ export default clerkMiddleware(async (auth, req) => {
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
     '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    // Always run for API routes
     '/(api|trpc)(.*)',
   ],
 };

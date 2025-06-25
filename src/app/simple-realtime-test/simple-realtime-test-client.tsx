@@ -2,7 +2,7 @@
 
 import { useAuth, useUser } from '@clerk/nextjs';
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useRealtimeSubscription } from '@/lib/hooks/useRealtimeSubscription';
 import {
   Card,
   CardContent,
@@ -29,6 +29,7 @@ interface TestData {
   message: string;
   created_by: string | null;
   created_at: string;
+  [key: string]: unknown;
 }
 
 interface TenantData {
@@ -47,13 +48,6 @@ interface JWTPayload {
   iat: number;
 }
 
-interface RealtimeEvent {
-  id: number;
-  event: string;
-  timestamp: string;
-  data: TestData | null;
-}
-
 interface SimpleRealtimeTestClientProps {
   initialTestData: TestData[];
   tenantData: TenantData | null;
@@ -69,262 +63,66 @@ export default function SimpleRealtimeTestClient({
   const { user } = useUser();
   const [jwtToken, setJwtToken] = useState<string | null>(null);
   const [jwtPayload, setJwtPayload] = useState<JWTPayload | null>(null);
-  const [testData, setTestData] = useState<TestData[]>(initialTestData);
-  const [realtimeStatus, setRealtimeStatus] = useState<
-    'disconnected' | 'connected' | 'error' | 'connecting'
-  >('disconnected');
-  const [realtimeEvents, setRealtimeEvents] = useState<RealtimeEvent[]>([]);
-  const [realtimeError, setRealtimeError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState('');
 
-  // JWT Token handling with modern 2025 pattern
+  // Modern 2025 real-time subscription with automatic reconnection
+  const {
+    connectionState,
+    data: realtimeData,
+    events: realtimeEvents,
+  } = useRealtimeSubscription<TestData>(
+    {
+      table: 'realtime_test',
+      ...(tenantData?.id && { filter: `tenant_id=eq.${tenantData.id}` }),
+    },
+    tenantData?.id || null,
+    !!tenantData?.id
+  );
+
+  // Combine initial data with real-time data
+  const [testData, setTestData] = useState<TestData[]>(initialTestData);
+
   useEffect(() => {
-    const fetchToken = async () => {
+    if (realtimeData.length > 0) {
+      // Merge real-time data with existing data, avoiding duplicates
+      setTestData((prev) => {
+        const existingIds = new Set(prev.map((item) => item.id));
+        const newItems = realtimeData.filter(
+          (item) => !existingIds.has(item.id)
+        );
+        return [...newItems, ...prev];
+      });
+    }
+  }, [realtimeData]);
+
+  // JWT Token handling for display purposes only
+  useEffect(() => {
+    const fetchTokenForDisplay = async () => {
       try {
         const token = await getToken({ template: 'supabase' });
         setJwtToken(token);
-        console.log('JWT Token obtained for real-time auth');
 
         if (token && typeof token === 'string') {
-          // Decode and log JWT payload for debugging
           const tokenParts = token.split('.');
-          if (tokenParts.length !== 3 || !tokenParts[1]) {
-            console.error(
-              '❌ Invalid JWT format - expected 3 parts separated by dots'
-            );
-            setRealtimeError('Invalid JWT token format');
-            return;
-          }
-
-          let payload: JWTPayload;
-          try {
-            payload = JSON.parse(atob(tokenParts[1])) as JWTPayload;
-            setJwtPayload(payload);
-            console.log('JWT Payload:', payload);
-            console.log('Tenant ID in JWT:', payload.tenant_id);
-          } catch (parseError) {
-            console.error('❌ Failed to parse JWT payload:', parseError);
-            setRealtimeError('Failed to parse JWT token');
-            return;
-          }
-
-          // Validate JWT for Supabase real-time
-          const now = Math.floor(Date.now() / 1000);
-          if (payload.exp && payload.exp < now) {
-            console.error('❌ JWT token is expired');
-            setRealtimeError('JWT token is expired');
-            return;
-          }
-
-          if (!payload.role) {
-            console.error('❌ JWT token missing role claim');
-            setRealtimeError('JWT token missing role claim');
-            return;
-          }
-
-          console.log('✅ JWT token validation passed');
-          console.log(
-            'JWT expires at:',
-            new Date(payload.exp * 1000).toISOString()
-          );
-          console.log('JWT role:', payload.role);
-
-          // Modern 2025 pattern for Clerk + Supabase real-time
-          console.log('Configuring JWT authentication for real-time');
-          try {
-            // For Clerk JWTs, we only need to set the real-time auth
-            // Do NOT use supabase.auth.setSession() with Clerk tokens
-            console.log('Setting JWT token for real-time authentication');
-            supabase.realtime.setAuth(token);
-            console.log(
-              '✅ JWT authentication configured successfully for real-time'
-            );
-          } catch (authError) {
-            console.error('Failed to set real-time authentication:', authError);
-            setRealtimeError('Failed to configure real-time authentication');
+          if (tokenParts.length === 3 && tokenParts[1]) {
+            try {
+              const payload = JSON.parse(atob(tokenParts[1])) as JWTPayload;
+              setJwtPayload(payload);
+            } catch {
+              // Silent error handling
+            }
           }
         }
-      } catch (error) {
-        console.error('Failed to fetch JWT token:', error);
-        setRealtimeError('Failed to authenticate for real-time connection');
+      } catch {
+        // Silent error handling
       }
     };
 
     if (userId && tenantData?.id) {
-      fetchToken();
+      fetchTokenForDisplay();
     }
   }, [getToken, userId, tenantData?.id]);
-
-  // Modern 2025 real-time subscription pattern
-  useEffect(() => {
-    // Only proceed if we have both tenant data and JWT token
-    if (!tenantData?.id || !jwtToken) {
-      console.log('Waiting for tenant data and JWT token...', {
-        tenantId: tenantData?.id,
-        hasJwtToken: !!jwtToken,
-      });
-      setRealtimeStatus('disconnected');
-      return;
-    }
-
-    console.log(
-      'Setting up authenticated real-time subscription for tenant:',
-      tenantData.id
-    );
-
-    // Clear previous errors
-    setRealtimeError(null);
-    setRealtimeStatus('connecting');
-
-    // Setup subscription with proper timing
-    const setupRealtimeSubscription = async () => {
-      try {
-        // Ensure authentication is set before creating subscription
-        console.log('Setting auth token for real-time connection...');
-        supabase.realtime.setAuth(jwtToken);
-
-        // Small delay to ensure auth is processed
-        await new Promise((resolve) => setTimeout(resolve, 100));
-
-        // Test basic connection first
-        console.log('Testing basic real-time connection...');
-        const testChannel = supabase.channel('connection-test');
-
-        const connectionPromise = new Promise((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error('Connection test timed out'));
-          }, 5000);
-
-          testChannel.subscribe((status, err) => {
-            clearTimeout(timeout);
-            if (err) {
-              reject(err);
-            } else if (status === 'SUBSCRIBED') {
-              resolve(status);
-            } else if (status === 'CHANNEL_ERROR') {
-              reject(new Error('Basic connection test failed'));
-            }
-          });
-        });
-
-        try {
-          await connectionPromise;
-          console.log('✅ Basic real-time connection successful');
-          supabase.removeChannel(testChannel);
-        } catch (connectionError) {
-          console.error(
-            '❌ Basic real-time connection failed:',
-            connectionError
-          );
-          supabase.removeChannel(testChannel);
-          const errorMessage =
-            connectionError instanceof Error
-              ? connectionError.message
-              : String(connectionError);
-          throw new Error(`Basic connection failed: ${errorMessage}`);
-        }
-
-        // Create channel with unique name including tenant for isolation
-        const channelName = `realtime-test-${tenantData.id}`;
-        console.log(`Creating real-time channel: ${channelName}`);
-        console.log(`Filtering by tenant_id: ${tenantData.id}`);
-
-        const channel = supabase
-          .channel(channelName)
-          .on(
-            'postgres_changes',
-            {
-              event: '*',
-              schema: 'public',
-              table: 'realtime_test',
-              filter: `tenant_id=eq.${tenantData.id}`,
-            },
-            (payload) => {
-              console.log('Real-time event received:', payload);
-
-              // Add event to log
-              setRealtimeEvents((prev) => [
-                {
-                  id: Date.now(),
-                  event: payload.eventType,
-                  timestamp: new Date().toISOString(),
-                  data: (payload.new || payload.old) as TestData,
-                },
-                ...prev.slice(0, 9), // Keep last 10 events
-              ]);
-
-              // Update test data based on event type
-              if (payload.eventType === 'INSERT' && payload.new) {
-                setTestData((prev) => [payload.new as TestData, ...prev]);
-              } else if (payload.eventType === 'DELETE' && payload.old) {
-                setTestData((prev) =>
-                  prev.filter((item) => item.id !== payload.old.id)
-                );
-              }
-            }
-          )
-          .subscribe((status, err) => {
-            console.log('Real-time subscription status:', status, err);
-
-            if (err) {
-              console.error('Real-time subscription error:', err);
-              setRealtimeError(`Subscription error: ${err.message || err}`);
-              setRealtimeStatus('error');
-            } else {
-              setRealtimeError(null);
-
-              if (status === 'SUBSCRIBED') {
-                console.log('✅ Real-time subscription successful!');
-                setRealtimeStatus('connected');
-              } else if (status === 'CHANNEL_ERROR') {
-                console.error('❌ Real-time channel error');
-                setRealtimeError(
-                  'Channel connection failed - check JWT authentication'
-                );
-                setRealtimeStatus('error');
-              } else if (status === 'TIMED_OUT') {
-                console.error('⏰ Real-time subscription timed out');
-                setRealtimeError('Connection timed out');
-                setRealtimeStatus('error');
-              } else if (status === 'CLOSED') {
-                console.log('🔌 Real-time connection closed');
-                setRealtimeStatus('disconnected');
-              } else {
-                console.log(`🔄 Real-time status: ${status}`);
-                setRealtimeStatus('connecting');
-              }
-            }
-          });
-
-        return channel;
-      } catch (error) {
-        console.error('Failed to setup real-time subscription:', error);
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        setRealtimeError(`Setup failed: ${errorMessage}`);
-        setRealtimeStatus('error');
-        return null;
-      }
-    };
-
-    // Execute the setup
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-
-    const initializeSubscription = async () => {
-      channel = await setupRealtimeSubscription();
-    };
-
-    initializeSubscription();
-
-    return () => {
-      console.log('Cleaning up real-time subscription');
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
-      setRealtimeStatus('disconnected');
-    };
-  }, [tenantData?.id, jwtToken]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -464,9 +262,9 @@ export default function SimpleRealtimeTestClient({
       <Card>
         <CardHeader>
           <CardTitle className='flex items-center gap-2'>
-            {realtimeStatus === 'connected' ? (
+            {connectionState.status === 'connected' ? (
               <Wifi className='h-5 w-5 text-green-500' />
-            ) : realtimeStatus === 'connecting' ? (
+            ) : connectionState.status === 'connecting' ? (
               <Wifi className='h-5 w-5 text-yellow-500 animate-pulse' />
             ) : (
               <WifiOff className='h-5 w-5 text-red-500' />
@@ -484,14 +282,14 @@ export default function SimpleRealtimeTestClient({
                 <span className='font-medium'>Status:</span>
                 <Badge
                   variant={
-                    realtimeStatus === 'connected'
+                    connectionState.status === 'connected'
                       ? 'default'
-                      : realtimeStatus === 'connecting'
+                      : connectionState.status === 'connecting'
                       ? 'secondary'
                       : 'destructive'
                   }
                 >
-                  {realtimeStatus}
+                  {connectionState.status}
                 </Badge>
               </div>
               <div className='text-sm text-muted-foreground'>
@@ -506,23 +304,28 @@ export default function SimpleRealtimeTestClient({
               >
                 Tenant: {tenantData?.id || 'Unknown'}
               </div>
+              {connectionState.reconnectAttempts > 0 && (
+                <div className='text-sm text-muted-foreground'>
+                  Reconnect attempts: {connectionState.reconnectAttempts}
+                </div>
+              )}
             </div>
 
-            {realtimeError && (
+            {connectionState.error && (
               <Alert>
                 <XCircle className='h-4 w-4' />
                 <AlertDescription>
-                  <strong>Real-time Error:</strong> {realtimeError}
+                  <strong>Real-time Error:</strong> {connectionState.error}
                 </AlertDescription>
               </Alert>
             )}
 
-            {realtimeStatus === 'connected' && (
+            {connectionState.status === 'connected' && (
               <Alert>
                 <CheckCircle className='h-4 w-4' />
                 <AlertDescription>
-                  ✅ Real-time connection established successfully with JWT
-                  authentication!
+                  ✅ Real-time connection established with automatic
+                  reconnection!
                 </AlertDescription>
               </Alert>
             )}
@@ -613,13 +416,15 @@ export default function SimpleRealtimeTestClient({
                 realtimeEvents.map((event) => (
                   <div key={event.id} className='p-2 border rounded text-xs'>
                     <div className='flex items-center justify-between'>
-                      <Badge variant='outline'>{event.event}</Badge>
+                      <Badge variant='outline'>{event.type}</Badge>
                       <span className='text-muted-foreground'>
                         {new Date(event.timestamp).toLocaleTimeString()}
                       </span>
                     </div>
                     <div className='mt-1 font-mono text-xs'>
-                      {event.data?.message || 'No message'}
+                      {(event.payload.new as TestData)?.message ||
+                        (event.payload.old as TestData)?.message ||
+                        'No message'}
                     </div>
                   </div>
                 ))
@@ -647,7 +452,7 @@ export default function SimpleRealtimeTestClient({
                 <span>JWT Authentication</span>
               </div>
               <div className='flex items-center gap-2'>
-                {realtimeStatus === 'connected' ? (
+                {connectionState.status === 'connected' ? (
                   <CheckCircle className='h-5 w-5 text-green-500' />
                 ) : (
                   <XCircle className='h-5 w-5 text-red-500' />
@@ -677,10 +482,15 @@ export default function SimpleRealtimeTestClient({
                   {jwtPayload?.tenant_id || 'Not set'}
                 </div>
                 <div>
-                  <strong>Real-time Status:</strong> {realtimeStatus}
+                  <strong>Real-time Status:</strong> {connectionState.status}
                 </div>
                 <div>
-                  <strong>Real-time Error:</strong> {realtimeError || 'None'}
+                  <strong>Real-time Error:</strong>{' '}
+                  {connectionState.error || 'None'}
+                </div>
+                <div>
+                  <strong>Reconnect Attempts:</strong>{' '}
+                  {connectionState.reconnectAttempts}
                 </div>
                 <div>
                   <strong>Events Received:</strong> {realtimeEvents.length}
