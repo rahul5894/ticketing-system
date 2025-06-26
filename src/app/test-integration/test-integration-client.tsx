@@ -2,7 +2,8 @@
 
 import { useAuth, useUser } from '@clerk/nextjs';
 import { useState, useEffect, useOptimistic, useRef } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useSupabase } from '@/features/shared/components/SupabaseProvider';
+import { useRealtimeSubscription } from '@/lib/hooks/useRealtimeSubscription';
 import {
   Card,
   CardContent,
@@ -32,9 +33,13 @@ import {
   Database,
 } from 'lucide-react';
 
+import { Tables } from '@/types/supabase';
+
+type Ticket = Tables<'tickets'> & { sending?: boolean };
+
 interface TestIntegrationClientProps {
-  initialTickets: any[];
-  tenantData: any;
+  initialTickets: Ticket[];
+  tenantData: Tables<'tenants'>;
   connectionStatus: string;
   connectionTime: number;
 }
@@ -47,33 +52,49 @@ export default function TestIntegrationClient({
 }: TestIntegrationClientProps) {
   const { getToken, userId } = useAuth();
   const { user } = useUser();
+  const { supabase } = useSupabase();
   const [jwtToken, setJwtToken] = useState<string | null>(null);
-  const [decodedToken, setDecodedToken] = useState<any>(null);
-  const [tickets, setTickets] = useState(initialTickets);
-  const [optimisticTickets, addOptimisticTicket] = useOptimistic(
-    tickets,
-    (state, newTicket: any) => [newTicket, ...state]
-  );
-  const [realtimeStatus, setRealtimeStatus] = useState<
-    'disconnected' | 'connected' | 'error'
-  >('disconnected');
-  const [realtimeEvents, setRealtimeEvents] = useState<any[]>([]);
+  const [decodedToken, setDecodedToken] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
-  // Using the base supabase client for real-time subscriptions
 
-  // JWT Token handling using 2025+ patterns with Supabase template
+  const {
+    connectionState,
+    data: tickets,
+    events: realtimeEvents,
+  } = useRealtimeSubscription<Ticket>(
+    {
+      table: 'tickets',
+      filter: `tenant_id=eq.${tenantData.id}`,
+    },
+    tenantData?.id,
+    !!tenantData?.id
+  );
+
+  const [optimisticTickets, addOptimisticTicket] = useOptimistic(
+    tickets,
+    (state: Ticket[], newTicket: Ticket) => [newTicket, ...state]
+  );
+
   useEffect(() => {
     const fetchToken = async () => {
       try {
-        // Get the custom Supabase JWT token using the template name
         const token = await getToken({ template: 'supabase' });
         setJwtToken(token);
-
         if (token) {
-          // Decode JWT payload (client-side for display only)
-          const payload = JSON.parse(atob(token.split('.')[1]));
-          setDecodedToken(payload);
+          try {
+            const tokenParts = token.split('.');
+            if (tokenParts.length === 3 && tokenParts[1]) {
+              const payload = JSON.parse(atob(tokenParts[1]));
+              setDecodedToken(payload);
+            }
+          } catch (error) {
+            console.error('Failed to decode JWT token:', error);
+            setDecodedToken(null);
+          }
         }
       } catch (error) {
         console.error('Failed to fetch JWT token:', error);
@@ -84,95 +105,6 @@ export default function TestIntegrationClient({
       fetchToken();
     }
   }, [getToken, userId]);
-
-  // Real-time subscription using 2025+ patterns with proper JWT authentication
-  useEffect(() => {
-    if (!tenantData?.id || !jwtToken) return;
-
-    // Set the JWT token for real-time authentication
-    // Note: If tenant_id is null in JWT, real-time will fail due to RLS policies
-    console.log(
-      'Setting up real-time with JWT token. tenant_id in token:',
-      decodedToken?.tenant_id
-    );
-
-    // Test if real-time server is accessible
-    console.log('Testing real-time server accessibility...');
-    fetch(
-      `https://xprwqadnmauhpschgkwk.supabase.co/realtime/v1/websocket?apikey=${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
-      {
-        method: 'HEAD',
-      }
-    )
-      .then((response) => {
-        console.log(
-          'Real-time server response:',
-          response.status,
-          response.statusText
-        );
-      })
-      .catch((error) => {
-        console.log('Real-time server not accessible:', error.message);
-      });
-
-    supabase.realtime.setAuth(jwtToken);
-
-    const channel = supabase
-      .channel('test-tickets-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tickets',
-          filter: `tenant_id=eq.${tenantData.id}`,
-        },
-        (payload) => {
-          console.log('Real-time event received:', payload);
-
-          // Add event to log
-          setRealtimeEvents((prev) => [
-            {
-              id: Date.now(),
-              event: payload.eventType,
-              timestamp: new Date().toISOString(),
-              data: payload.new || payload.old,
-            },
-            ...prev.slice(0, 9),
-          ]); // Keep last 10 events
-
-          // Update tickets list based on event type
-          if (payload.eventType === 'INSERT' && payload.new) {
-            setTickets((prev) => [payload.new, ...prev]);
-          } else if (payload.eventType === 'UPDATE' && payload.new) {
-            setTickets((prev) =>
-              prev.map((ticket) =>
-                ticket.id === payload.new.id ? payload.new : ticket
-              )
-            );
-          } else if (payload.eventType === 'DELETE' && payload.old) {
-            setTickets((prev) =>
-              prev.filter((ticket) => ticket.id !== payload.old.id)
-            );
-          }
-        }
-      )
-      .subscribe((status) => {
-        console.log('Subscription status:', status);
-        setRealtimeStatus(
-          status === 'SUBSCRIBED'
-            ? 'connected'
-            : status === 'CHANNEL_ERROR'
-            ? 'error'
-            : 'disconnected'
-        );
-      });
-
-    return () => {
-      supabase.removeChannel(channel);
-      setRealtimeStatus('disconnected');
-    };
-  }, [tenantData?.id, jwtToken, supabase]);
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -192,7 +124,7 @@ export default function TestIntegrationClient({
     const priority = formData.get('priority') as string;
     const department = formData.get('department') as string;
 
-    const newTicket = {
+    const newTicket: Ticket = {
       id: `temp-${Date.now()}`,
       title,
       description,
@@ -204,41 +136,32 @@ export default function TestIntegrationClient({
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       sending: true,
+      assigned_to: null,
+      closed_at: null,
+      due_date: null,
+      metadata: null,
+      resolved_at: null,
+      tags: null,
     };
 
-    // Optimistic update using React 19 pattern
     addOptimisticTicket(newTicket);
     formRef.current?.reset();
 
     try {
-      const response = await fetch('/api/test-realtime', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title,
-          description,
-          priority,
-          department,
-          userId,
-          userEmail: user?.emailAddresses?.[0]?.emailAddress,
-          userName: user?.fullName,
-        }),
+      if (!supabase) throw new Error('Supabase client is not available.');
+      const { error } = await supabase.from('tickets').insert({
+        title,
+        description,
+        priority,
+        department,
+        user_id: userId,
+        tenant_id: tenantData.id,
       });
 
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Failed to create ticket');
-      }
-
-      // Real-time subscription will handle the actual update
-      console.log('Ticket created successfully:', result);
+      if (error) throw error;
     } catch (error) {
       console.error('Failed to create ticket:', error);
-      // Remove optimistic update on error
-      setTickets((prev) => prev.filter((ticket) => ticket.id !== newTicket.id));
+      // The optimistic update will be automatically rolled back by the hook.
     } finally {
       setIsSubmitting(false);
     }
@@ -373,7 +296,7 @@ export default function TestIntegrationClient({
       <Card>
         <CardHeader>
           <CardTitle className='flex items-center gap-2'>
-            {realtimeStatus === 'connected' ? (
+            {connectionState.status === 'connected' ? (
               <Wifi className='h-5 w-5 text-green-500' />
             ) : (
               <WifiOff className='h-5 w-5 text-red-500' />
@@ -390,10 +313,12 @@ export default function TestIntegrationClient({
               <span className='font-medium'>Real-time Status:</span>
               <Badge
                 variant={
-                  realtimeStatus === 'connected' ? 'default' : 'destructive'
+                  connectionState.status === 'connected'
+                    ? 'default'
+                    : 'destructive'
                 }
               >
-                {realtimeStatus}
+                {connectionState.status}
               </Badge>
             </div>
             <div className='text-sm text-muted-foreground'>
@@ -459,7 +384,7 @@ export default function TestIntegrationClient({
               Live Tickets ({optimisticTickets.length})
             </h4>
             <div className='space-y-2 max-h-64 overflow-auto'>
-              {optimisticTickets.map((ticket, index) => (
+              {optimisticTickets.map((ticket) => (
                 <div
                   key={ticket.id}
                   className={`p-3 border rounded ${
@@ -482,7 +407,10 @@ export default function TestIntegrationClient({
                     {ticket.description}
                   </div>
                   <div className='text-xs text-muted-foreground mt-2'>
-                    Created: {new Date(ticket.created_at).toLocaleString()}
+                    Created:{' '}
+                    {ticket.created_at
+                      ? new Date(ticket.created_at).toLocaleString()
+                      : 'N/A'}
                   </div>
                 </div>
               ))}
@@ -502,13 +430,15 @@ export default function TestIntegrationClient({
                 realtimeEvents.map((event) => (
                   <div key={event.id} className='p-2 border rounded text-xs'>
                     <div className='flex items-center justify-between'>
-                      <Badge variant='outline'>{event.event}</Badge>
+                      <Badge variant='outline'>{event.type}</Badge>
                       <span className='text-muted-foreground'>
                         {new Date(event.timestamp).toLocaleTimeString()}
                       </span>
                     </div>
                     <div className='mt-1 font-mono text-xs'>
-                      {event.data?.title || 'No title'}
+                      {(event.payload.new as Ticket)?.title ||
+                        (event.payload.old as Ticket)?.title ||
+                        'No title'}
                     </div>
                   </div>
                 ))
@@ -516,7 +446,7 @@ export default function TestIntegrationClient({
             </div>
           </div>
 
-          {realtimeStatus !== 'connected' && (
+          {connectionState.status !== 'connected' && (
             <Alert>
               <AlertDescription>
                 Real-time connection is not active. Check your Supabase
@@ -553,7 +483,7 @@ export default function TestIntegrationClient({
               <span>Database Connection</span>
             </div>
             <div className='flex items-center gap-2'>
-              {realtimeStatus === 'connected' ? (
+              {connectionState.status === 'connected' ? (
                 <CheckCircle className='h-5 w-5 text-green-500' />
               ) : (
                 <XCircle className='h-5 w-5 text-red-500' />

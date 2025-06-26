@@ -33,6 +33,7 @@ interface TicketUpdate {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 /**
+ * @deprecated Use the `useSupabase` hook from `SupabaseProvider` instead.
  * Tenant-aware Supabase client wrapper
  * Automatically filters queries by tenant_id to ensure data isolation
  * Note: For real-time subscriptions, use useSupabaseClient hook instead
@@ -154,6 +155,7 @@ export class TenantSupabaseClient {
 }
 
 /**
+ * @deprecated Use the `useSupabase` hook from `SupabaseProvider` instead.
  * Create a tenant-aware Supabase client
  */
 export function createTenantClient(tenantId: string): TenantSupabaseClient {

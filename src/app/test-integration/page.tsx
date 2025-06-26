@@ -2,17 +2,22 @@
 
 import { useAuth } from '@clerk/nextjs';
 import { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import TestIntegrationClient from './test-integration-client';
+import { Tables } from '@/types/supabase';
+
+type Ticket = Tables<'tickets'>;
+type Tenant = Tables<'tenants'>;
+
+interface InitialData {
+  initialTickets: Ticket[];
+  tenantData: Tenant | null;
+  connectionStatus: string;
+  connectionTime: number;
+}
 
 export default function TestIntegrationPage() {
   const { isLoaded, userId } = useAuth();
-  const [initialData, setInitialData] = useState<{
-    initialTickets: any[];
-    tenantData: any;
-    connectionStatus: string;
-    connectionTime: number;
-  }>({
+  const [initialData, setInitialData] = useState<InitialData>({
     initialTickets: [],
     tenantData: null,
     connectionStatus: 'disconnected',
@@ -83,12 +88,16 @@ export default function TestIntegrationPage() {
           </p>
         </div>
 
-        <TestIntegrationClient
-          initialTickets={initialData.initialTickets}
-          tenantData={initialData.tenantData}
-          connectionStatus={initialData.connectionStatus}
-          connectionTime={initialData.connectionTime}
-        />
+        {initialData.tenantData ? (
+          <TestIntegrationClient
+            initialTickets={initialData.initialTickets}
+            tenantData={initialData.tenantData}
+            connectionStatus={initialData.connectionStatus}
+            connectionTime={initialData.connectionTime}
+          />
+        ) : (
+          <div className='text-center'>Loading tenant data...</div>
+        )}
       </div>
     </div>
   );
