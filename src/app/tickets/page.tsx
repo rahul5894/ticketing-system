@@ -11,6 +11,13 @@ import { VisitorInformation } from '@/features/visitor/components/VisitorInforma
 import { useTicketingStore } from '@/features/ticketing/store/use-ticketing-store';
 import { TenantProvider } from '@/features/tenant/context/TenantContext';
 import { getDomainFromWindow, DomainInfoState } from '@/lib/domain';
+import { usePermissions } from '@/features/shared/hooks/useAuth';
+import { useTicketRealtime } from '@/features/ticketing/hooks/useTicketRealtime';
+import { useClerkSupabaseSync } from '@/hooks/useClerkSupabaseSync';
+import {
+  SyncStatusIndicator,
+  SyncDebugInfo,
+} from '../../features/shared/components/SyncStatusIndicator';
 import {
   Dialog,
   DialogContent,
@@ -40,7 +47,10 @@ function TicketsPageContent() {
     addTicket,
     getTicketsForTenant,
     setTenantId,
+    useMockData,
+    isLoading,
   } = useTicketingStore();
+  const { hasPermission } = usePermissions();
   // const tenantIdFromContext = useTenantId(); // TODO: Use this when implementing proper tenant context
   const [domainInfo, setDomainInfo] = useState<DomainInfoState>(null);
   const [tenantId, setCurrentTenantId] = useState<string | null>(null);
@@ -48,6 +58,12 @@ function TicketsPageContent() {
   const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
   const [showDraftConfirmation, setShowDraftConfirmation] = useState(false);
   const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
+
+  // Set up Clerk-Supabase synchronization
+  const { syncStatus, syncData, triggerSync } = useClerkSupabaseSync(tenantId);
+
+  // Set up real-time subscriptions for ticket updates
+  useTicketRealtime(tenantId, !useMockData && !!user);
 
   useEffect(() => {
     setDomainInfo(getDomainFromWindow());
@@ -58,6 +74,9 @@ function TicketsPageContent() {
       const currentTenantId = domainInfo.tenantId;
       setCurrentTenantId(currentTenantId);
       setTenantId(currentTenantId);
+
+      // The sync hook will handle switching between mock and real data
+      // based on whether sync is successful
     }
   }, [domainInfo, setTenantId]);
 
@@ -98,9 +117,6 @@ function TicketsPageContent() {
 
   // For subdomains, authentication is required (handled by middleware)
   // If we reach here, user is authenticated
-
-  // Determine if user is admin (simplified logic for demo)
-  const isAdmin = user?.publicMetadata?.role === 'admin' || true; // Default to true for demo
 
   // Get tickets for current tenant
   const tickets = getTicketsForTenant(tenantId);
@@ -223,13 +239,32 @@ function TicketsPageContent() {
     <AppLayout rightSidebar={<VisitorInformation />}>
       <div className='flex h-full'>
         {/* Recent Tickets Sidebar */}
-        <div className='w-96 shrink-0 h-full'>
-          <RecentTickets
-            selectedTicketId={selectedTicketId}
-            onTicketSelect={handleTicketSelect}
-            onCreateTicket={handleCreateTicket}
-            tickets={tickets}
-          />
+        <div className='w-96 shrink-0 h-full flex flex-col'>
+          {/* Sync Status Indicator */}
+          <div className='p-4 border-b border-gray-200 dark:border-gray-700'>
+            <SyncStatusIndicator
+              syncStatus={syncStatus}
+              onRetry={triggerSync}
+            />
+            {/* Debug info for development */}
+            {process.env.NODE_ENV === 'development' && (
+              <SyncDebugInfo
+                syncStatus={syncStatus}
+                syncData={syncData}
+                show={true}
+              />
+            )}
+          </div>
+
+          <div className='flex-1'>
+            <RecentTickets
+              selectedTicketId={selectedTicketId}
+              onTicketSelect={handleTicketSelect}
+              onCreateTicket={handleCreateTicket}
+              tickets={tickets}
+              isLoading={isLoading}
+            />
+          </div>
         </div>
 
         {/* Main Content - Ticket Detail or Create Form */}
@@ -237,12 +272,19 @@ function TicketsPageContent() {
           {isCreatingTicket ? (
             <CreateTicketForm
               onSubmit={handleSubmitTicket}
+              onSuccess={(ticketId) => {
+                setIsCreatingTicket(false);
+                selectTicket(ticketId);
+                // Real-time subscription will automatically update the ticket list
+                // No need to manually refresh when using Supabase
+              }}
+              tenantId={tenantId || 'localhost'}
               isSubmitting={isSubmittingTicket}
             />
           ) : selectedTicket ? (
             <TicketDetail
               ticket={selectedTicket}
-              isAdmin={isAdmin}
+              isAdmin={hasPermission('tickets.update')}
               onTicketUpdate={updateTicket}
             />
           ) : (

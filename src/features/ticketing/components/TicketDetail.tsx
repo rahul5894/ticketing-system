@@ -51,6 +51,7 @@ import {
   TicketPriority,
   Department,
 } from '../models/ticket.schema';
+import { usePermissions } from '@/features/shared/hooks/useAuth';
 
 interface TicketDetailProps {
   ticket: Ticket;
@@ -150,7 +151,7 @@ function ConfirmationDialog({
 interface InteractivePriorityBadgeProps {
   currentPriority: TicketPriority;
   onPriorityChange: (newPriority: TicketPriority) => void;
-  isAdmin: boolean;
+  isAdmin?: boolean; // Keep for backward compatibility
 }
 
 function InteractivePriorityBadge({
@@ -158,10 +159,14 @@ function InteractivePriorityBadge({
   onPriorityChange,
   isAdmin,
 }: InteractivePriorityBadgeProps) {
+  const { hasPermission } = usePermissions();
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     newPriority: TicketPriority | null;
   }>({ open: false, newPriority: null });
+
+  // Use permission system, fallback to isAdmin for backward compatibility
+  const canChangePriority = hasPermission('tickets.priority.change') || isAdmin;
 
   const handlePrioritySelect = (newPriority: TicketPriority) => {
     if (newPriority === currentPriority) return;
@@ -186,7 +191,7 @@ function InteractivePriorityBadge({
     (option) => option.value === confirmDialog.newPriority
   );
 
-  if (!isAdmin) {
+  if (!canChangePriority) {
     return (
       <Badge className={cn('text-xs', priorityColors[currentPriority])}>
         {currentPriority.charAt(0).toUpperCase() + currentPriority.slice(1)}{' '}
@@ -247,7 +252,7 @@ function InteractivePriorityBadge({
 interface InteractiveDepartmentBadgeProps {
   currentDepartment: Department;
   onDepartmentChange: (newDepartment: Department) => void;
-  isAdmin: boolean;
+  isAdmin?: boolean; // Keep for backward compatibility
 }
 
 function InteractiveDepartmentBadge({
@@ -255,10 +260,15 @@ function InteractiveDepartmentBadge({
   onDepartmentChange,
   isAdmin,
 }: InteractiveDepartmentBadgeProps) {
+  const { hasPermission } = usePermissions();
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     newDepartment: Department | null;
   }>({ open: false, newDepartment: null });
+
+  // Use permission system, fallback to isAdmin for backward compatibility
+  const canChangeDepartment =
+    hasPermission('tickets.department.change') || isAdmin;
 
   const handleDepartmentSelect = (newDepartment: Department) => {
     if (newDepartment === currentDepartment) return;
@@ -283,7 +293,7 @@ function InteractiveDepartmentBadge({
     (option) => option.value === confirmDialog.newDepartment
   );
 
-  if (!isAdmin) {
+  if (!canChangeDepartment) {
     return (
       <Badge className={cn('text-xs', departmentColors[currentDepartment])}>
         {currentDepartment.charAt(0).toUpperCase() + currentDepartment.slice(1)}{' '}

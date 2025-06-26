@@ -69,12 +69,8 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   response.headers.set('X-Frame-Options', 'DENY');
   response.headers.set('X-Nonce', nonce);
 
-  // Skip static and API
-  if (
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/api') ||
-    pathname.includes('.')
-  ) {
+  // Skip static files only
+  if (pathname.startsWith('/_next') || pathname.includes('.')) {
     return response;
   }
 
@@ -87,6 +83,14 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   if (subdomain) {
     if (!ALLOWED_SUBDOMAINS.includes(subdomain)) {
       return NextResponse.rewrite(new URL('/not-found', req.url));
+    }
+
+    // For API routes that don't need auth checks, just return the response
+    if (
+      pathname.startsWith('/api/tickets') ||
+      pathname.startsWith('/api/webhooks')
+    ) {
+      return response;
     }
 
     const { userId } = await auth();

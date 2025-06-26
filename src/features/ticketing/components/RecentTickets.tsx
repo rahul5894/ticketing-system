@@ -11,12 +11,14 @@ import {
 import { Search, Filter, ChevronDown, ChevronUp, Plus } from 'lucide-react';
 import { TicketCard } from './TicketCard';
 import { mockTickets, Ticket } from '../models/ticket.schema';
+import { usePermissions } from '@/features/shared/hooks/useAuth';
 
 interface RecentTicketsProps {
   selectedTicketId?: string | null;
   onTicketSelect?: (ticketId: string) => void;
   onCreateTicket?: () => void;
   tickets?: Ticket[];
+  isLoading?: boolean;
 }
 
 type AccordionSection = 'new' | 'open' | 'closed';
@@ -26,9 +28,11 @@ export function RecentTickets({
   onTicketSelect,
   onCreateTicket,
   tickets = mockTickets,
+  isLoading = false,
 }: RecentTicketsProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [openSection, setOpenSection] = useState<AccordionSection>('open');
+  const { hasPermission } = usePermissions();
 
   // Helper function to check if ticket is new (created within last 24 hours)
   const isNewTicket = (ticket: Ticket) => {
@@ -110,15 +114,28 @@ export function RecentTickets({
 
       <CollapsibleContent className='flex-1 overflow-y-auto min-h-0 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-corner-transparent [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-none dark:[&::-webkit-scrollbar-thumb]:bg-gray-600 [&::-webkit-scrollbar-button]:hidden'>
         <div className='space-y-0'>
-          {tickets.map((ticket) => (
-            <TicketCard
-              key={ticket.id}
-              ticket={ticket}
-              isSelected={selectedTicketId === ticket.id}
-              onClick={() => onTicketSelect?.(ticket.id)}
-              hideStatus={true}
-            />
-          ))}
+          {isLoading ? (
+            <div className='flex items-center justify-center py-8'>
+              <div className='animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600'></div>
+              <span className='ml-2 text-sm text-gray-500'>
+                Loading tickets...
+              </span>
+            </div>
+          ) : tickets.length === 0 ? (
+            <div className='flex items-center justify-center py-8'>
+              <span className='text-sm text-gray-500'>No tickets found</span>
+            </div>
+          ) : (
+            tickets.map((ticket) => (
+              <TicketCard
+                key={ticket.id}
+                ticket={ticket}
+                isSelected={selectedTicketId === ticket.id}
+                onClick={() => onTicketSelect?.(ticket.id)}
+                hideStatus={true}
+              />
+            ))
+          )}
         </div>
       </CollapsibleContent>
     </Collapsible>
@@ -132,14 +149,16 @@ export function RecentTickets({
           <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
             Recent Tickets
           </h2>
-          <Button
-            onClick={onCreateTicket}
-            size='sm'
-            className='bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-600 dark:hover:bg-blue-700'
-          >
-            <Plus className='h-4 w-4 mr-2' />
-            Create New Ticket
-          </Button>
+          {hasPermission('tickets.create') && (
+            <Button
+              onClick={onCreateTicket}
+              size='sm'
+              className='bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-600 dark:hover:bg-blue-700'
+            >
+              <Plus className='h-4 w-4 mr-2' />
+              Create New Ticket
+            </Button>
+          )}
         </div>
 
         {/* Search and Filter */}

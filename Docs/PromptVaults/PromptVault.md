@@ -26,6 +26,47 @@ git push origin HEAD --force
 
 ---
 
+That error means the path `src/types/` **does not exist yet**, so Supabase CLI can’t write the `supabase.ts` file into it.
+
+---
+
+## ✅ Fix It in One Step
+
+Run this to create the folder before running the codegen:
+
+```bash
+mkdir src\types
+```
+
+Then re-run your command:
+
+```bash
+supabase gen types typescript --project-id xprwqadnmauhpschgkwk > src/types/supabase.ts
+```
+
+✅ This will now succeed and create `supabase.ts` containing **fully typed interfaces** for your Supabase schema.
+
+---
+
+## 🧠 Tip: TypeScript Usage Example
+
+Once it’s generated:
+
+```ts
+import { Database } from '@/types/supabase';
+
+// Use type for your "tickets" table
+type Ticket = Database['public']['Tables']['tickets']['Row'];
+```
+
+Let me know if you want to:
+
+- Narrow it to just one table
+- Auto-generate types on schema change
+- Convert them to Zod schemas or integrate with Zustand
+
+--
+
 I want you to proactively use the available MCP tools (Google Research AI, Context7, Sequential Thinking, and Task Management) throughout our development workflow according to these specific guidelines:
 
 **Research & Documentation Requirements:**

@@ -13,6 +13,7 @@ export interface AuthState {
   isSignedIn: boolean;
   tenant: Tenant | null;
   tenantId: string | null;
+  isSuperAdmin: boolean;
   isAdmin: boolean;
   isAgent: boolean;
   isUser: boolean;
@@ -33,10 +34,11 @@ export function useAuth(): AuthState {
   }, []);
 
   // Determine user role from Clerk metadata or tenant context
-  const userRole = (user?.publicMetadata?.role as string) || 'user';
-  const isAdmin = userRole === 'admin';
-  const isAgent = userRole === 'agent' || isAdmin;
-  const isUser = userRole === 'user' || isAgent;
+  const userRole = (user?.publicMetadata?.role as string) || 'member';
+  const isSuperAdmin = userRole === 'super_admin';
+  const isAdmin = userRole === 'admin' || isSuperAdmin;
+  const isAgent = userRole === 'agent';
+  const isUser = userRole === 'member' || userRole === 'user';
 
   // Determine if authentication is required based on domain
   const requiresAuth = domainInfo?.isSubdomain || false;
@@ -47,6 +49,7 @@ export function useAuth(): AuthState {
     isSignedIn: isSignedIn || false,
     tenant,
     tenantId,
+    isSuperAdmin,
     isAdmin,
     isAgent,
     isUser,
@@ -59,34 +62,43 @@ export function useAuth(): AuthState {
  * Hook for checking if user has specific permissions
  */
 export function usePermissions() {
-  const { isAdmin, isAgent, isUser, tenant } = useAuth();
+  const { isSuperAdmin, isAdmin, isAgent, isUser, tenant } = useAuth();
 
   const hasPermission = (permission: string): boolean => {
-    // Admin has all permissions
-    if (isAdmin) return true;
+    // Super Admin and Admin have all permissions
+    if (isSuperAdmin || isAdmin) return true;
 
     // Check tenant-specific permissions
     const tenantFeatures = tenant?.settings?.features || [];
 
     switch (permission) {
       case 'tickets.view':
-        return isUser;
+        return isUser || isAgent;
       case 'tickets.create':
-        return isUser;
+        return isSuperAdmin || isAdmin; // Only Super Admin and Admin can create tickets
       case 'tickets.update':
-        return isAgent;
+        return isAgent || isAdmin || isSuperAdmin;
       case 'tickets.delete':
-        return isAdmin;
+        return isAdmin || isSuperAdmin;
       case 'tickets.assign':
-        return isAgent;
+        return isAdmin || isSuperAdmin;
+      case 'tickets.priority.change':
+        return isAdmin || isSuperAdmin; // Only Admin/Super Admin can change priority
+      case 'tickets.department.change':
+        return isAdmin || isSuperAdmin; // Only Admin/Super Admin can change department
       case 'analytics.view':
-        return isAgent && tenantFeatures.includes('analytics');
+        return (
+          (isAgent || isAdmin || isSuperAdmin) &&
+          tenantFeatures.includes('analytics')
+        );
       case 'integrations.manage':
-        return isAdmin && tenantFeatures.includes('integrations');
+        return (
+          (isAdmin || isSuperAdmin) && tenantFeatures.includes('integrations')
+        );
       case 'users.manage':
-        return isAdmin;
+        return isAdmin || isSuperAdmin;
       case 'settings.manage':
-        return isAdmin;
+        return isAdmin || isSuperAdmin;
       default:
         return false;
     }
@@ -100,6 +112,7 @@ export function usePermissions() {
   return {
     hasPermission,
     canAccessFeature,
+    isSuperAdmin,
     isAdmin,
     isAgent,
     isUser,

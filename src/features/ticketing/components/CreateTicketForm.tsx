@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
+import { useUser } from '@clerk/nextjs';
 
 import { Button } from '@/features/shared/components/ui/button';
 import { Input } from '@/features/shared/components/ui/input';
@@ -59,7 +60,9 @@ interface CreateTicketFormData {
 }
 
 interface CreateTicketFormProps {
-  onSubmit: (data: CreateTicketFormData & { attachments: File[] }) => void;
+  onSubmit?: (data: CreateTicketFormData & { attachments: File[] }) => void;
+  onSuccess?: (ticketId: string) => void;
+  tenantId: string;
   isSubmitting?: boolean;
 }
 
@@ -91,10 +94,14 @@ const departmentDotColors = {
 
 export function CreateTicketForm({
   onSubmit,
+  onSuccess,
+  tenantId,
   isSubmitting = false,
 }: CreateTicketFormProps) {
   // State
   const [attachments] = useState<File[]>([]);
+  const [isCreating, setIsCreating] = useState(false);
+  const { user } = useUser();
 
   // Form setup
   const form = useForm<CreateTicketFormData>({
@@ -114,10 +121,56 @@ export function CreateTicketForm({
   const { clearDraft } = useDraftPersistence(form);
 
   // Handlers
-  const handleSubmit = (data: CreateTicketFormData) => {
-    // Clear draft before submitting
-    clearDraft();
-    onSubmit({ ...data, attachments });
+  const handleSubmit = async (data: CreateTicketFormData) => {
+    if (!user) {
+      console.error('User not authenticated');
+      return;
+    }
+
+    setIsCreating(true);
+
+    try {
+      // Clear draft before submitting
+      clearDraft();
+
+      // If legacy onSubmit is provided, use it (for backward compatibility)
+      if (onSubmit) {
+        onSubmit({ ...data, attachments });
+        return;
+      }
+
+      // Otherwise, use the new API
+      const response = await fetch('/api/tickets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: data.title,
+          description: data.description,
+          priority: data.priority,
+          department: data.department,
+          tenant_id: tenantId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create ticket');
+      }
+
+      const ticket = await response.json();
+
+      // Reset form
+      form.reset();
+
+      // Call success callback
+      onSuccess?.(ticket.id);
+    } catch (error) {
+      console.error('Failed to create ticket:', error);
+      // TODO: Add proper error handling/toast notification
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const handleDiscard = () => {
@@ -478,11 +531,13 @@ export function CreateTicketForm({
                   </Button>
                   <Button
                     type='submit'
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isCreating}
                     onClick={form.handleSubmit(handleSubmit)}
                   >
                     <Send className='h-4 w-4 mr-1' />
-                    {isSubmitting ? 'Creating...' : 'Create Ticket'}
+                    {isSubmitting || isCreating
+                      ? 'Creating...'
+                      : 'Create Ticket'}
                   </Button>
                 </div>
               </div>
@@ -493,4 +548,3 @@ export function CreateTicketForm({
     </div>
   );
 }
-
