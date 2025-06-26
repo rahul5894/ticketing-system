@@ -122,15 +122,26 @@ export class ClerkSupabaseSync {
         .eq('clerk_id', user.id)
         .single();
 
-      // Validate and sanitize user role
-      const validRoles = ['user', 'agent', 'admin', 'super_admin'];
-      const metadataRole = user.publicMetadata?.role as string;
-      const userRole = validRoles.includes(metadataRole)
-        ? metadataRole
-        : 'user';
+      // Map Clerk organization roles to Supabase roles
+      const clerkRole = user.publicMetadata?.role as string;
+      console.log('Raw Clerk role from metadata:', clerkRole);
 
-      console.log('User role from metadata:', metadataRole);
-      console.log('Final user role (validated):', userRole);
+      // Clerk role mapping to Supabase roles
+      const roleMapping: Record<string, string> = {
+        'org:admin': 'super_admin',
+        admin: 'admin',
+        agent: 'agent',
+        member: 'user',
+        user: 'user',
+      };
+
+      const mappedRole = roleMapping[clerkRole] || 'user';
+      const validRoles = ['user', 'agent', 'admin', 'super_admin'];
+      const userRole = validRoles.includes(mappedRole) ? mappedRole : 'user';
+
+      console.log('Clerk role:', clerkRole);
+      console.log('Mapped role:', mappedRole);
+      console.log('Final validated role:', userRole);
 
       const userData: User = {
         clerk_id: user.id,
@@ -189,7 +200,36 @@ export class ClerkSupabaseSync {
   }
 
   /**
-   * Ensure both tenant and user are synced
+   * Retry wrapper for async operations
+   */
+  private async retryOperation<T>(
+    operation: () => Promise<T>,
+    maxRetries: number = 3,
+    delay: number = 1000
+  ): Promise<T> {
+    let lastError: Error;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`Attempt ${attempt}/${maxRetries}`);
+        return await operation();
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error('Unknown error');
+        console.warn(`Attempt ${attempt} failed:`, lastError.message);
+
+        if (attempt < maxRetries) {
+          console.log(`Retrying in ${delay}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
+        }
+      }
+    }
+
+    throw lastError!;
+  }
+
+  /**
+   * Ensure both tenant and user are synced with retry logic
    */
   async ensureSync(
     user: ClerkUser,
@@ -203,19 +243,28 @@ export class ClerkSupabaseSync {
         organization.slug
       );
 
-      // Sync tenant first
-      const tenant = await this.syncTenant(organization);
+      // Sync tenant first with retry
+      const tenant = await this.retryOperation(
+        () => this.syncTenant(organization),
+        3,
+        1000
+      );
 
-      // Then sync user
-      const syncedUser = await this.syncUser(user, tenant);
+      // Then sync user with retry
+      const syncedUser = await this.retryOperation(
+        () => this.syncUser(user, tenant),
+        3,
+        1000
+      );
 
+      console.log('Sync completed successfully');
       return {
         success: true,
         tenant,
         user: syncedUser,
       };
     } catch (error) {
-      console.error('Sync failed:', error);
+      console.error('Sync failed after all retries:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown sync error',

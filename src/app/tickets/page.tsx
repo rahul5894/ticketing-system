@@ -18,6 +18,8 @@ import {
   SyncStatusIndicator,
   SyncDebugInfo,
 } from '../../features/shared/components/SyncStatusIndicator';
+import { AuthErrorBoundary } from '@/features/shared/components/AuthErrorBoundary';
+import { AuthLoadingState } from '@/features/shared/components/AuthLoadingState';
 import {
   Dialog,
   DialogContent,
@@ -59,8 +61,9 @@ function TicketsPageContent() {
   const [showDraftConfirmation, setShowDraftConfirmation] = useState(false);
   const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
 
-  // Set up Clerk-Supabase synchronization
-  const { syncStatus, syncData, triggerSync } = useClerkSupabaseSync(tenantId);
+  // Set up Clerk-Supabase synchronization with modern auth state management
+  const { syncStatus, syncData, triggerSync, authState, isAuthReady } =
+    useClerkSupabaseSync(tenantId);
 
   // Set up real-time subscriptions for ticket updates
   useTicketRealtime(tenantId, !useMockData && !!user);
@@ -80,15 +83,20 @@ function TicketsPageContent() {
     }
   }, [domainInfo, setTenantId]);
 
-  // Show loading while authentication is being checked
-  if (!isLoaded) {
+  // Show loading while authentication is being checked or transitioning
+  if (!isLoaded || !isAuthReady || authState.isTransitioning) {
     return (
-      <div className='min-h-screen flex items-center justify-center bg-gray-50'>
-        <div className='text-center'>
-          <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4'></div>
-          <p className='text-gray-600'>Loading...</p>
-        </div>
-      </div>
+      <AuthLoadingState
+        isLoading={!isLoaded}
+        isTransitioning={authState.isTransitioning}
+        message={
+          authState.isTransitioning
+            ? 'Authenticating...'
+            : 'Loading your workspace...'
+        }
+      >
+        <div />
+      </AuthLoadingState>
     );
   }
 
@@ -321,8 +329,10 @@ function TicketsPageContent() {
 
 export default function TicketsPage() {
   return (
-    <TenantProvider>
-      <TicketsPageContent />
-    </TenantProvider>
+    <AuthErrorBoundary>
+      <TenantProvider>
+        <TicketsPageContent />
+      </TenantProvider>
+    </AuthErrorBoundary>
   );
 }

@@ -4,22 +4,30 @@ import { ClerkSupabaseSync } from '@/services/clerk-supabase-sync';
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('🔄 Sync API called');
+
     // Get the authenticated user from Clerk
     const { userId, getToken } = await auth();
 
     if (!userId) {
+      console.error('🚨 Sync API: No user ID found');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    console.log('✅ User authenticated:', userId);
 
     // Get the Clerk session token for Supabase
     const token = await getToken();
 
     if (!token) {
+      console.error('🚨 Sync API: No authentication token available');
       return NextResponse.json(
         { error: 'No authentication token available' },
         { status: 401 }
       );
     }
+
+    console.log('✅ Token obtained successfully');
 
     // Get tenantId from request body
     const body = await request.json();
