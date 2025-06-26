@@ -2,7 +2,7 @@
 
 import { useAuth, useUser } from '@clerk/nextjs';
 import { useState, useEffect } from 'react';
-import { useSupabaseClient } from '@/lib/supabase-client';
+import { useSupabase } from '@/features/shared/components/SupabaseProvider';
 import { useRealtimeSubscription } from '@/lib/hooks/useRealtimeSubscription';
 import {
   Card,
@@ -52,7 +52,7 @@ interface JWTPayload {
 export default function SimpleRealtimeTestClient() {
   const { getToken, userId, isLoaded } = useAuth();
   const { user } = useUser();
-  const { client: supabase } = useSupabaseClient();
+  const { supabase } = useSupabase();
   const [jwtToken, setJwtToken] = useState<string | null>(null);
   const [jwtPayload, setJwtPayload] = useState<JWTPayload | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -214,6 +214,7 @@ export default function SimpleRealtimeTestClient() {
       // Optimistically clear the local state by re-fetching
       // This is a simple approach for this test page.
       // In a real app, you might update the local state directly.
+      if (!supabase) return;
       const { error: testDataError } = await supabase
         .from('realtime_test')
         .select('*')

@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import { ClerkProvider } from '@clerk/nextjs';
 import { ThemeProvider } from '@/features/shared/components/ThemeProvider';
 import { SessionValidator } from '@/features/shared/components/SessionValidator';
+import { SupabaseProvider } from '@/features/shared/components/SupabaseProvider';
 import './globals.css';
 
 const geistSans = Geist({
@@ -33,7 +34,9 @@ export default function RootLayout({
           suppressHydrationWarning
         >
           <ThemeProvider defaultTheme='light' storageKey='ticketing-theme'>
-            <SessionValidator>{children}</SessionValidator>
+            <SupabaseProvider>
+              <SessionValidator>{children}</SessionValidator>
+            </SupabaseProvider>
           </ThemeProvider>
         </body>
       </html>

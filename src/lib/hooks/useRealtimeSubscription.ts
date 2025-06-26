@@ -8,7 +8,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { useSupabaseClient } from '@/lib/supabase-client';
+import { useSupabase } from '@/features/shared/components/SupabaseProvider';
 import type {
   RealtimePostgresChangesPayload,
   REALTIME_SUBSCRIBE_STATES,
@@ -68,7 +68,7 @@ export function useRealtimeSubscription<
   tenantId: string | null,
   enabled: boolean = true
 ): UseRealtimeSubscriptionReturn<T> {
-  const { client: supabase, isRealtimeReady } = useSupabaseClient();
+  const { supabase, isInitialized: isRealtimeReady } = useSupabase();
   const [connectionState, setConnectionState] = useState<ConnectionState>({
     status: 'disconnected',
     error: null,
@@ -239,4 +239,3 @@ export function useRealtimeSubscription<
     events,
   };
 }
-
