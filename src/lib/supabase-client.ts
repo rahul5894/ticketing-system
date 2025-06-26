@@ -11,8 +11,9 @@ import { useMemo, useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useAuth } from '@clerk/nextjs';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from './database.types';
 
-let supabaseInstance: SupabaseClient | null = null;
+let supabaseInstance: SupabaseClient<Database> | null = null;
 
 export function useSupabaseClient() {
   const { getToken, isSignedIn } = useAuth();
@@ -23,7 +24,7 @@ export function useSupabaseClient() {
       return supabaseInstance;
     }
 
-    supabaseInstance = createClient(
+    supabaseInstance = createClient<Database>(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
@@ -86,7 +87,7 @@ export function useSupabaseClient() {
  * Legacy export for backward compatibility
  * Use useSupabaseClient hook for new implementations
  */
-export const supabase = createClient(
+export const supabase = createClient<Database>(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );

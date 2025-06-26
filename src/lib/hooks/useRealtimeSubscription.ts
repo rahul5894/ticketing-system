@@ -1,18 +1,21 @@
 /**
- * Modern 2025 Supabase Real-time Hook
+ * Modern 2025+ Supabase Real-time Hook
  *
- * Minimal, robust implementation with automatic reconnection and persistent connections
- * Follows latest Supabase best practices for connection management
+ * A robust, minimal implementation for Supabase Realtime subscriptions
+ * with automatic reconnection logic and detailed connection state tracking.
+ * It follows the latest Supabase best practices for connection management.
  */
-
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useSupabaseClient } from '@/lib/supabase-client';
 import type {
-  RealtimeChannel,
   RealtimePostgresChangesPayload,
+  REALTIME_SUBSCRIBE_STATES,
 } from '@supabase/supabase-js';
+import type { RealtimeChannel } from '@supabase/realtime-js';
+
+// --- Type Definitions ---
 
 interface RealtimeConfig {
   table: string;
@@ -21,10 +24,17 @@ interface RealtimeConfig {
   event?: 'INSERT' | 'UPDATE' | 'DELETE' | '*';
 }
 
+type ConnectionStatus =
+  | 'disconnected'
+  | 'connecting'
+  | 'connected'
+  | 'reconnecting'
+  | 'closed'
+  | 'error';
+
 interface ConnectionState {
-  status: 'disconnected' | 'connecting' | 'connected' | 'error';
-  isReady: boolean;
-  error: string | null;
+  status: ConnectionStatus;
+  error: Error | null;
   reconnectAttempts: number;
 }
 
@@ -46,12 +56,10 @@ interface DatabaseRecord {
   [key: string]: unknown;
 }
 
-interface PostgresChangesConfig {
-  event: 'INSERT' | 'UPDATE' | 'DELETE' | '*';
-  schema: string;
-  table: string;
-  filter?: string;
-}
+const MAX_RECONNECT_ATTEMPTS = 5;
+const INITIAL_RECONNECT_DELAY_MS = 1000;
+
+// --- Main Hook ---
 
 export function useRealtimeSubscription<
   T extends DatabaseRecord = DatabaseRecord
@@ -63,7 +71,6 @@ export function useRealtimeSubscription<
   const { client: supabase, isRealtimeReady } = useSupabaseClient();
   const [connectionState, setConnectionState] = useState<ConnectionState>({
     status: 'disconnected',
-    isReady: false,
     error: null,
     reconnectAttempts: 0,
   });
@@ -71,124 +78,148 @@ export function useRealtimeSubscription<
   const [events, setEvents] = useState<RealtimeEvent<T>[]>([]);
 
   const channelRef = useRef<RealtimeChannel | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const reconnectAttemptsRef = useRef(0);
+  const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handlePayload = useCallback(
+    (payload: RealtimePostgresChangesPayload<T>) => {
+      const eventId = Date.now() + Math.random();
+      const event: RealtimeEvent<T> = {
+        id: eventId,
+        type: payload.eventType,
+        timestamp: new Date().toISOString(),
+        payload,
+      };
+
+      setEvents((prev) => [event, ...prev.slice(0, 19)]);
+
+      switch (payload.eventType) {
+        case 'INSERT':
+          setData((prev) => [payload.new as T, ...prev]);
+          break;
+        case 'UPDATE':
+          setData((prev) =>
+            prev.map((item) =>
+              item.id === (payload.new as T).id ? (payload.new as T) : item
+            )
+          );
+          break;
+        case 'DELETE':
+          setData((prev) =>
+            prev.filter((item) => item.id !== (payload.old as T).id)
+          );
+          break;
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     if (!enabled || !tenantId || !isRealtimeReady || !supabase) {
-      setConnectionState({
-        status: 'disconnected',
-        isReady: false,
-        error: null,
-        reconnectAttempts: 0,
-      });
       return;
     }
 
-    let isSubscribed = true;
-    setConnectionState((prev) => ({ ...prev, status: 'connecting' }));
+    let reconnectAttempts = 0;
 
-    const setupConnection = () => {
-      if (!isSubscribed) return;
+    const connect = () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
 
-      const channelName = `${config.table}-${tenantId}-${Date.now()}`;
+      setConnectionState({
+        status: 'connecting',
+        error: null,
+        reconnectAttempts,
+      });
+
+      const channelName = `realtime:${config.table}:${tenantId}`;
       const channel = supabase.channel(channelName);
 
-      const subscriptionConfig: PostgresChangesConfig = {
-        event: config.event || '*',
-        schema: config.schema || 'public',
-        table: config.table,
-        ...(config.filter && { filter: config.filter }),
-      };
-
-      channel
-        .on(
-          'postgres_changes' as 'system',
-          subscriptionConfig,
-          (payload: RealtimePostgresChangesPayload<T>) => {
-            if (!isSubscribed) return;
-
-            const eventId = Date.now() + Math.random();
-            const event = {
-              id: eventId,
-              type: payload.eventType,
-              timestamp: new Date().toISOString(),
-              payload,
-            };
-
-            setEvents((prev) => [event, ...prev.slice(0, 9)]);
-
-            if (payload.eventType === 'INSERT' && payload.new) {
-              setData((prev) => [payload.new as T, ...prev]);
-            } else if (payload.eventType === 'DELETE' && payload.old) {
-              setData((prev) =>
-                prev.filter((item) => item.id !== (payload.old as T).id)
-              );
-            } else if (payload.eventType === 'UPDATE' && payload.new) {
-              setData((prev) =>
-                prev.map((item) =>
-                  item.id === (payload.new as T).id ? (payload.new as T) : item
-                )
-              );
-            }
-          }
-        )
-        .subscribe((status: string, err?: Error) => {
-          if (!isSubscribed) return;
-
-          if (err) {
-            setConnectionState((prev) => ({
-              ...prev,
-              status: 'error',
-              error: err.message,
-              isReady: false,
-            }));
-
-            // Simple reconnection logic
-            if (reconnectAttemptsRef.current < 3) {
-              reconnectAttemptsRef.current += 1;
-              const timeoutId = setTimeout(() => {
-                if (isSubscribed) {
-                  supabase.removeChannel(channel);
-                  setupConnection();
-                }
-              }, 2000 * reconnectAttemptsRef.current);
-              reconnectTimeoutRef.current = timeoutId;
-            }
-          } else {
-            reconnectAttemptsRef.current = 0;
-            setConnectionState((prev) => ({
-              ...prev,
-              status: status === 'SUBSCRIBED' ? 'connected' : 'connecting',
-              isReady: status === 'SUBSCRIBED',
+      const handleSubscriptionEvent = (
+        status: `${REALTIME_SUBSCRIBE_STATES}`,
+        err?: Error
+      ) => {
+        switch (status) {
+          case 'SUBSCRIBED':
+            setConnectionState({
+              status: 'connected',
               error: null,
               reconnectAttempts: 0,
+            });
+            reconnectAttempts = 0;
+            if (reconnectTimerRef.current) {
+              clearTimeout(reconnectTimerRef.current);
+            }
+            break;
+
+          case 'TIMED_OUT':
+          case 'CHANNEL_ERROR':
+          case 'CLOSED':
+            setConnectionState((prev) => ({
+              ...prev,
+              status: status === 'CLOSED' ? 'closed' : 'error',
+              error: err || new Error(`Connection status: ${status}`),
             }));
-          }
-        });
+            reconnect();
+            break;
+        }
+      };
+
+      // Create properly typed filter object for postgres_changes
+      const filterOpts = {
+        schema: config.schema ?? 'public',
+        table: config.table,
+        event: config.event ?? '*',
+        ...(config.filter ? { filter: config.filter } : {}),
+      } as const;
+
+      // TypeScript workaround: Supabase realtime overload resolution issue
+      // The channel.on() method has multiple overloads and TS cannot resolve the correct one
+      // for 'postgres_changes' even with proper typing. This is a known issue in @supabase/realtime-js
+      // See: https://github.com/supabase/supabase-js/issues/1451
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (channel as any)
+        .on('postgres_changes', filterOpts, handlePayload)
+        .subscribe(handleSubscriptionEvent);
 
       channelRef.current = channel;
     };
 
-    setupConnection();
+    const reconnect = () => {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+      }
+      if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+        setConnectionState((prev) => ({
+          ...prev,
+          status: 'error',
+          error: new Error('Maximum reconnection attempts reached.'),
+        }));
+        return;
+      }
+
+      reconnectAttempts++;
+      const delay = INITIAL_RECONNECT_DELAY_MS * 2 ** (reconnectAttempts - 1);
+
+      setConnectionState((prev) => ({
+        ...prev,
+        status: 'reconnecting',
+        reconnectAttempts,
+      }));
+
+      reconnectTimerRef.current = setTimeout(connect, delay);
+    };
+
+    connect();
 
     return () => {
-      isSubscribed = false;
-      const timeoutId = reconnectTimeoutRef.current;
-      const channel = channelRef.current;
-
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
       }
-      if (channel) {
-        supabase.removeChannel(channel);
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
       }
-      setConnectionState({
-        status: 'disconnected',
-        isReady: false,
-        error: null,
-        reconnectAttempts: 0,
-      });
     };
   }, [
     enabled,
@@ -199,6 +230,7 @@ export function useRealtimeSubscription<
     config.schema,
     config.filter,
     config.event,
+    handlePayload,
   ]);
 
   return {

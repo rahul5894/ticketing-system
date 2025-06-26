@@ -2,6 +2,7 @@
 
 import { useAuth, useUser } from '@clerk/nextjs';
 import { useState, useEffect } from 'react';
+import { useSupabaseClient } from '@/lib/supabase-client';
 import { useRealtimeSubscription } from '@/lib/hooks/useRealtimeSubscription';
 import {
   Card,
@@ -48,23 +49,69 @@ interface JWTPayload {
   iat: number;
 }
 
-interface SimpleRealtimeTestClientProps {
-  initialTestData: TestData[];
-  tenantData: TenantData | null;
-  testDataError: string | null;
-}
-
-export default function SimpleRealtimeTestClient({
-  initialTestData,
-  tenantData,
-  testDataError,
-}: SimpleRealtimeTestClientProps) {
-  const { getToken, userId } = useAuth();
+export default function SimpleRealtimeTestClient() {
+  const { getToken, userId, isLoaded } = useAuth();
   const { user } = useUser();
+  const { client: supabase } = useSupabaseClient();
   const [jwtToken, setJwtToken] = useState<string | null>(null);
   const [jwtPayload, setJwtPayload] = useState<JWTPayload | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState('');
+  const [tenantData, setTenantData] = useState<TenantData | null>(null);
+  const [testDataError, setTestDataError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      if (!isLoaded || !supabase) return;
+
+      if (!userId) {
+        window.location.href = '/sign-in';
+        return;
+      }
+
+      try {
+        const hostname = window.location.hostname;
+        const subdomainParts = hostname.split('.');
+        const subdomain = subdomainParts[0] || 'localhost';
+
+        if (!subdomain || subdomain === 'localhost') {
+          const defaultTenant: TenantData = {
+            id: 'quantumnest',
+            name: 'QuantumNest',
+            subdomain: 'quantumnest',
+            status: 'active',
+          };
+          setTenantData(defaultTenant);
+        } else {
+          const tenantData: TenantData = {
+            id: subdomain,
+            name: subdomain.charAt(0).toUpperCase() + subdomain.slice(1),
+            subdomain: subdomain,
+            status: 'active',
+          };
+          setTenantData(tenantData);
+        }
+
+        const tenantId = subdomain === 'localhost' ? 'quantumnest' : subdomain;
+        const { error: testDataError } = await supabase
+          .from('realtime_test')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        setTestDataError(testDataError?.message || null);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        setTestDataError(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadData();
+  }, [isLoaded, userId, supabase]);
 
   // Modern 2025 real-time subscription with automatic reconnection
   const {
@@ -80,21 +127,8 @@ export default function SimpleRealtimeTestClient({
     !!tenantData?.id
   );
 
-  // Combine initial data with real-time data
-  const [testData, setTestData] = useState<TestData[]>(initialTestData);
-
-  useEffect(() => {
-    if (realtimeData.length > 0) {
-      // Merge real-time data with existing data, avoiding duplicates
-      setTestData((prev) => {
-        const existingIds = new Set(prev.map((item) => item.id));
-        const newItems = realtimeData.filter(
-          (item) => !existingIds.has(item.id)
-        );
-        return [...newItems, ...prev];
-      });
-    }
-  }, [realtimeData]);
+  // The useRealtimeSubscription hook now manages the data state internally.
+  const testData = realtimeData;
 
   // JWT Token handling for display purposes only
   useEffect(() => {
@@ -151,9 +185,7 @@ export default function SimpleRealtimeTestClient({
       }
 
       setMessage('');
-      console.log('Message sent successfully');
-    } catch (error) {
-      console.error('Failed to send message:', error);
+    } catch {
       alert('Failed to send message. Please try again.');
     } finally {
       setIsSubmitting(false);
@@ -179,13 +211,28 @@ export default function SimpleRealtimeTestClient({
       if (!response.ok || !result.success) {
         throw new Error(result.error || 'Failed to clear data');
       }
-
-      console.log('Test data cleared successfully');
-    } catch (error) {
-      console.error('Failed to clear data:', error);
+      // Optimistically clear the local state by re-fetching
+      // This is a simple approach for this test page.
+      // In a real app, you might update the local state directly.
+      const { error: testDataError } = await supabase
+        .from('realtime_test')
+        .select('*')
+        .eq('tenant_id', tenantData.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      setTestDataError(testDataError?.message || null);
+    } catch {
       alert('Failed to clear data. Please try again.');
     }
   };
+
+  if (loading) {
+    return (
+      <div className='flex justify-center items-center h-64'>
+        <p>Loading real-time data...</p>
+      </div>
+    );
+  }
 
   return (
     <div className='space-y-6'>
@@ -315,7 +362,8 @@ export default function SimpleRealtimeTestClient({
               <Alert>
                 <XCircle className='h-4 w-4' />
                 <AlertDescription>
-                  <strong>Real-time Error:</strong> {connectionState.error}
+                  <strong>Real-time Error:</strong>{' '}
+                  {connectionState.error.message}
                 </AlertDescription>
               </Alert>
             )}
@@ -486,7 +534,7 @@ export default function SimpleRealtimeTestClient({
                 </div>
                 <div>
                   <strong>Real-time Error:</strong>{' '}
-                  {connectionState.error || 'None'}
+                  {connectionState.error?.message || 'None'}
                 </div>
                 <div>
                   <strong>Reconnect Attempts:</strong>{' '}
