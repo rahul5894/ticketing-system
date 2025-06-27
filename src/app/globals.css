@@ -1,5 +1,5 @@
-@import "tailwindcss";
-@import "tw-animate-css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -116,7 +116,8 @@
   * {
     @apply border-border;
   }
-  html, body {
+  html,
+  body {
     height: 100%;
     overflow: hidden;
     @apply bg-background text-foreground;
@@ -127,12 +128,53 @@
   }
 
   /* Remove all outlines from inputs and interactive elements */
-  input, textarea, select, button, [role="button"], [tabindex] {
+  input,
+  textarea,
+  select,
+  button,
+  [role='button'],
+  [tabindex] {
     outline: none !important;
     box-shadow: none !important;
   }
 
-  input:focus, textarea:focus, select:focus, button:focus, [role="button"]:focus, [tabindex]:focus {
+  input:focus,
+  textarea:focus,
+  select:focus,
+  button:focus,
+  [role='button']:focus,
+  [tabindex]:focus {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Custom no-focus classes for specific form fields */
+  .no-focus-ring {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  .no-focus-ring:focus,
+  .no-focus-ring:focus-visible,
+  .no-focus-ring:focus-within {
+    outline: none !important;
+    box-shadow: none !important;
+    ring: none !important;
+  }
+
+  /* Ensure child elements also don't show focus rings */
+  .no-focus-ring input,
+  .no-focus-ring textarea,
+  .no-focus-ring [contenteditable] {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  .no-focus-ring input:focus,
+  .no-focus-ring input:focus-visible,
+  .no-focus-ring textarea:focus,
+  .no-focus-ring textarea:focus-visible,
+  .no-focus-ring [contenteditable]:focus {
     outline: none !important;
     box-shadow: none !important;
   }

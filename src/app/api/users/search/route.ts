@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     // Parse query parameters
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q') || '';
-    const role = searchParams.get('role'); // Optional role filter
+    const roles = searchParams.getAll('role'); // Support multiple role filters
     const limit = parseInt(searchParams.get('limit') || '10');
 
     // Validate limit
@@ -77,16 +77,22 @@ export async function GET(request: NextRequest) {
     }
 
     // Add role filter if specified
-    if (role) {
-      // Validate role
+    if (roles.length > 0) {
+      // Validate roles
       const validRoles = ['user', 'agent', 'admin', 'super_admin'];
-      if (!validRoles.includes(role)) {
+      const invalidRoles = roles.filter((role) => !validRoles.includes(role));
+      if (invalidRoles.length > 0) {
         return NextResponse.json(
-          { error: 'Invalid role filter' },
+          { error: `Invalid role filter(s): ${invalidRoles.join(', ')}` },
           { status: 400 }
         );
       }
-      usersQuery = usersQuery.eq('role', role);
+
+      if (roles.length === 1) {
+        usersQuery = usersQuery.eq('role', roles[0]!);
+      } else {
+        usersQuery = usersQuery.in('role', roles);
+      }
     }
 
     // Execute query with ordering
@@ -117,7 +123,7 @@ export async function GET(request: NextRequest) {
       users: formattedUsers,
       total: formattedUsers.length,
       query,
-      role: role || null,
+      roles: roles.length > 0 ? roles : null,
     });
   } catch (error) {
     console.error('API error:', error);

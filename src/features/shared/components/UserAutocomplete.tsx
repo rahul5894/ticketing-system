@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 
 // LRU Cache for search results
 class SearchCache {
-  private cache = new Map<string, { users: User[]; timestamp: number }>();
+  public cache = new Map<string, { users: User[]; timestamp: number }>();
   private maxSize = 50;
   private maxAge = 5 * 60 * 1000; // 5 minutes
 
@@ -43,6 +43,11 @@ class SearchCache {
   clear(): void {
     this.cache.clear();
   }
+
+  // Get all cache keys for smart filtering
+  getCacheKeys(): string[] {
+    return Array.from(this.cache.keys());
+  }
 }
 
 // Global cache instance
@@ -60,11 +65,12 @@ interface UserAutocompleteProps {
   value?: string[] | string | undefined;
   onChange?: (value: string[] | string | undefined) => void;
   placeholder?: string;
-  roleFilter?: string; // Filter by specific role (e.g., 'agent')
+  roleFilter?: string | string[]; // Filter by specific role(s) (e.g., 'agent' or ['admin', 'agent'])
   multiple?: boolean;
   disabled?: boolean;
   className?: string;
   error?: string;
+  dropdownOnly?: boolean; // When true, disables manual text input and only allows dropdown selection
 }
 
 export function UserAutocomplete({
@@ -76,6 +82,7 @@ export function UserAutocomplete({
   disabled = false,
   className,
   error,
+  dropdownOnly = false,
 }: UserAutocompleteProps) {
   const [query, setQuery] = useState('');
   const [users, setUsers] = useState<User[]>([]);
@@ -96,13 +103,17 @@ export function UserAutocomplete({
       // For multi-select, always show the search query
       return query;
     } else {
+      // For single-select dropdown-only mode, always show selected user's email
+      if (dropdownOnly && selectedUsers.length > 0) {
+        return selectedUsers[0]?.email || '';
+      }
       // For single-select, only show selected user's email if not actively typing
       if (selectedUsers.length > 0 && query === '' && !isTyping) {
         return selectedUsers[0]?.email || '';
       }
       return query;
     }
-  }, [multiple, selectedUsers, query, isTyping]);
+  }, [multiple, selectedUsers, query, isTyping, dropdownOnly]);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -113,10 +124,73 @@ export function UserAutocomplete({
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   };
 
-  // Search users with caching and debouncing
+  // Create manual email tag for CC field
+  const createManualEmailTag = useCallback(
+    (email: string) => {
+      if (!multiple || !isCompleteEmail(email)) return;
+
+      const trimmedEmail = email.trim();
+
+      // Check if email is already selected
+      if (selectedUsers.some((user) => user.email === trimmedEmail)) return;
+
+      // Create a temporary user object for manual email
+      const manualUser: User = {
+        id: `manual_${trimmedEmail}`,
+        name: trimmedEmail.split('@')[0] || trimmedEmail, // Use part before @ as name, fallback to full email
+        email: trimmedEmail,
+        role: 'manual', // Special role for manual entries
+        status: 'active', // Default status for manual entries
+      };
+
+      const newValue = [...normalizedValue, manualUser.id];
+      setSelectedUsers((prev) => [...prev, manualUser]);
+      onChange?.(newValue);
+      setQuery('');
+      setIsTyping(false);
+    },
+    [multiple, selectedUsers, normalizedValue, onChange]
+  );
+
+  // Smart substring filtering for cached results
+  const getFilteredCachedResults = useCallback(
+    (searchQuery: string, roleFilterKey: string): User[] | null => {
+      // Try to find cached results for shorter queries that this search extends
+      const cacheKeys = searchCache.getCacheKeys();
+
+      for (const key of cacheKeys) {
+        const [cachedQuery, cachedRoleFilter] = key.split(':');
+
+        // Check if we have cached results for a shorter query that this query extends
+        if (
+          cachedQuery &&
+          cachedRoleFilter === roleFilterKey &&
+          cachedQuery.length >= 3 &&
+          searchQuery.startsWith(cachedQuery) &&
+          searchQuery.length > cachedQuery.length
+        ) {
+          const cachedUsers = searchCache.get(key);
+          if (cachedUsers) {
+            // Filter the cached results by the new search query
+            return cachedUsers.filter(
+              (user) =>
+                user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                user.name?.toLowerCase().includes(searchQuery.toLowerCase())
+            );
+          }
+        }
+      }
+
+      return null;
+    },
+    []
+  );
+
+  // Search users with smart caching, debouncing, and 3-character minimum
   const searchUsers = useCallback(
     async (searchQuery: string) => {
-      if (searchQuery.length < 2) {
+      // Always require at least 3 characters - no exceptions
+      if (searchQuery.length < 3) {
         setUsers([]);
         setIsOpen(false);
         return;
@@ -130,12 +204,26 @@ export function UserAutocomplete({
       }
 
       // Create cache key including role filter
-      const cacheKey = `${searchQuery}:${roleFilter || 'all'}`;
+      const roleFilterKey = Array.isArray(roleFilter)
+        ? roleFilter.sort().join(',')
+        : roleFilter || 'all';
+      const cacheKey = `${searchQuery}:${roleFilterKey}`;
 
-      // Check cache first
-      const cachedUsers = searchCache.get(cacheKey);
+      // Check exact cache match first
+      let cachedUsers = searchCache.get(cacheKey);
+
+      // If no exact match, try smart substring filtering
+      if (!cachedUsers) {
+        cachedUsers = getFilteredCachedResults(searchQuery, roleFilterKey);
+
+        // If we found filtered results, cache them for this specific query
+        if (cachedUsers) {
+          searchCache.set(cacheKey, cachedUsers);
+        }
+      }
+
       if (cachedUsers) {
-        // Filter out already selected users (for both single-select and multi-select)
+        // Filter out already selected users
         const filteredUsers = cachedUsers.filter(
           (user: User) => !normalizedValue.includes(user.id)
         );
@@ -150,11 +238,15 @@ export function UserAutocomplete({
       try {
         const params = new URLSearchParams({
           q: searchQuery,
-          limit: '10',
+          limit: '20', // Increased limit for better caching
         });
 
         if (roleFilter) {
-          params.append('role', roleFilter);
+          if (Array.isArray(roleFilter)) {
+            roleFilter.forEach((role) => params.append('role', role));
+          } else {
+            params.append('role', roleFilter);
+          }
         }
 
         const response = await fetch(`/api/users/search?${params}`);
@@ -168,7 +260,7 @@ export function UserAutocomplete({
         // Cache the raw results
         searchCache.set(cacheKey, data.users);
 
-        // Filter out already selected users (for both single-select and multi-select)
+        // Filter out already selected users
         const filteredUsers = data.users.filter(
           (user: User) => !normalizedValue.includes(user.id)
         );
@@ -184,22 +276,26 @@ export function UserAutocomplete({
         setIsLoading(false);
       }
     },
-    [roleFilter, normalizedValue]
+    [roleFilter, normalizedValue, getFilteredCachedResults]
   );
 
-  // Debounced search
+  // Optimized debounced search with 400ms delay
   useEffect(() => {
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }
 
-    debounceRef.current = setTimeout(() => {
-      searchUsers(query);
-      // Reset typing state after search completes
-      if (query === '') {
-        setIsTyping(false);
-      }
-    }, 300);
+    // Only trigger search if query has at least 3 characters
+    if (query.length >= 3) {
+      debounceRef.current = setTimeout(() => {
+        searchUsers(query);
+      }, 400); // Increased debounce time for better performance
+    } else {
+      // Clear results immediately if less than 3 characters
+      setUsers([]);
+      setIsOpen(false);
+      setIsTyping(false);
+    }
 
     return () => {
       if (debounceRef.current) {
@@ -301,23 +397,32 @@ export function UserAutocomplete({
 
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!isOpen) return;
-
     switch (e.key) {
       case 'ArrowDown':
+        if (!isOpen) return;
         e.preventDefault();
         setHighlightedIndex((prev) =>
           prev < users.length - 1 ? prev + 1 : prev
         );
         break;
       case 'ArrowUp':
+        if (!isOpen) return;
         e.preventDefault();
         setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : prev));
         break;
       case 'Enter':
         e.preventDefault();
-        if (highlightedIndex >= 0 && users[highlightedIndex]) {
+        if (isOpen && highlightedIndex >= 0 && users[highlightedIndex]) {
           handleSelectUser(users[highlightedIndex]);
+        } else if (multiple && query.trim() && isCompleteEmail(query.trim())) {
+          // Create manual email tag for valid email
+          createManualEmailTag(query.trim());
+        }
+        break;
+      case ' ': // Space key
+        if (multiple && query.trim() && isCompleteEmail(query.trim())) {
+          e.preventDefault();
+          createManualEmailTag(query.trim());
         }
         break;
       case 'Escape':
@@ -353,6 +458,8 @@ export function UserAutocomplete({
         return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
       case 'user':
         return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
+      case 'manual':
+        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
       default:
         return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
     }
@@ -365,12 +472,15 @@ export function UserAutocomplete({
         <div
           className={cn(
             'flex flex-wrap items-center gap-1 min-h-[2.25rem] w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-[color,box-shadow]',
-            'focus-within:border-ring focus-within:ring-ring/50 focus-within:ring-[3px]',
-            error &&
-              'border-destructive focus-within:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40',
-            disabled && 'cursor-not-allowed opacity-50 pointer-events-none'
+            'focus-within:border-ring',
+            error && 'border-destructive focus-within:border-destructive',
+            disabled && 'cursor-not-allowed opacity-50 pointer-events-none',
+            // For dropdown-only single-select mode with selection, disable the entire container
+            dropdownOnly &&
+              !multiple &&
+              selectedUsers.length > 0 &&
+              'opacity-75 pointer-events-none'
           )}
-          onClick={() => inputRef.current?.focus()}
         >
           {/* Selected user tags (for multi-select) */}
           {multiple &&
@@ -407,8 +517,13 @@ export function UserAutocomplete({
             placeholder={
               multiple && selectedUsers.length > 0 ? '' : placeholder
             }
-            disabled={disabled}
-            className='flex-1 min-w-[120px] bg-transparent border-0 outline-none text-sm placeholder:text-muted-foreground'
+            disabled={
+              disabled ||
+              (dropdownOnly && !multiple && selectedUsers.length > 0)
+            }
+            className={cn(
+              'flex-1 min-w-[120px] bg-transparent border-0 outline-none text-sm placeholder:text-muted-foreground'
+            )}
             role='combobox'
             aria-expanded={isOpen}
             aria-controls='user-suggestions'
@@ -416,6 +531,31 @@ export function UserAutocomplete({
             aria-autocomplete='list'
             aria-describedby={error ? 'error-message' : undefined}
           />
+
+          {/* Clear button for dropdown-only single-select mode */}
+          {dropdownOnly &&
+            !multiple &&
+            selectedUsers.length > 0 &&
+            !disabled && (
+              <Button
+                type='button'
+                variant='ghost'
+                size='sm'
+                className='h-4 w-4 p-0 hover:bg-gray-300 rounded-full flex-shrink-0 relative z-10'
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedUsers([]);
+                  onChange?.(undefined);
+                  setQuery('');
+                  // Re-enable the field by focusing the input
+                  setTimeout(() => {
+                    inputRef.current?.focus();
+                  }, 0);
+                }}
+              >
+                <X className='h-3 w-3' />
+              </Button>
+            )}
 
           {/* Loading indicator */}
           {isLoading && (

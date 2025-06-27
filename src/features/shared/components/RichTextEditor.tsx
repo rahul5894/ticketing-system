@@ -21,16 +21,8 @@ import {
   ListOrdered,
   Paperclip,
   Smile,
-  AtSign,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-}
 
 interface RichTextEditorProps {
   value: string;
@@ -50,26 +42,29 @@ export function RichTextEditor({
   onAttachmentClick,
 }: RichTextEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
-  const [showMentions, setShowMentions] = useState(false);
-  const [mentionUsers, setMentionUsers] = useState<User[]>([]);
-  const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 0 });
-  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
+  const [activeFormats, setActiveFormats] = useState<Set<string>>(new Set());
 
-  // Search users for @mentions
-  const searchMentionUsers = useCallback(async (query: string) => {
-    if (query.length < 1) {
-      setMentionUsers([]);
-      return;
-    }
+  // Check which formats are currently active
+  const updateActiveFormats = useCallback(() => {
+    if (!editorRef.current) return;
 
-    try {
-      const response = await fetch(`/api/users/search?q=${query}&limit=5`);
-      const data = await response.json();
-      setMentionUsers(data.users || []);
-    } catch (error) {
-      console.error('Error searching mention users:', error);
-      setMentionUsers([]);
-    }
+    const formats = new Set<string>();
+
+    // Check for formatting commands
+    if (document.queryCommandState('bold')) formats.add('bold');
+    if (document.queryCommandState('italic')) formats.add('italic');
+    if (document.queryCommandState('underline')) formats.add('underline');
+    if (document.queryCommandState('insertUnorderedList'))
+      formats.add('unorderedList');
+    if (document.queryCommandState('insertOrderedList'))
+      formats.add('orderedList');
+
+    // Check alignment
+    if (document.queryCommandState('justifyLeft')) formats.add('alignLeft');
+    if (document.queryCommandState('justifyCenter')) formats.add('alignCenter');
+    if (document.queryCommandState('justifyRight')) formats.add('alignRight');
+
+    setActiveFormats(formats);
   }, []);
 
   // Handle text formatting commands
@@ -77,15 +72,35 @@ export function RichTextEditor({
     (command: string, value?: string) => {
       if (disabled) return;
 
-      document.execCommand(command, false, value);
+      // Ensure editor is focused before executing command
       editorRef.current?.focus();
+
+      // Execute the command
+      const success = document.execCommand(command, false, value);
+
+      // For list commands, ensure proper formatting
+      if (
+        (command === 'insertUnorderedList' ||
+          command === 'insertOrderedList') &&
+        success
+      ) {
+        // Force a re-render to ensure proper list styling
+        setTimeout(() => {
+          if (editorRef.current) {
+            onChange(editorRef.current.innerHTML);
+          }
+        }, 0);
+      }
 
       // Update the value after formatting
       if (editorRef.current) {
         onChange(editorRef.current.innerHTML);
       }
+
+      // Update active formats after command execution
+      setTimeout(updateActiveFormats, 0);
     },
-    [disabled, onChange]
+    [disabled, onChange, updateActiveFormats]
   );
 
   // Handle input changes
@@ -95,128 +110,183 @@ export function RichTextEditor({
     const content = editorRef.current.innerHTML;
     onChange(content);
 
-    // Check for @mention trigger
-    const selection = window.getSelection();
-    if (selection && selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0);
-      const textNode = range.startContainer;
+    // Update active formats after content change
+    setTimeout(updateActiveFormats, 0);
+  }, [onChange, updateActiveFormats]);
 
-      if (textNode.nodeType === Node.TEXT_NODE) {
-        const text = textNode.textContent || '';
-        const cursorPos = range.startOffset;
+  // Handle keyboard events
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // Basic keyboard handling can be added here if needed
+    console.log('Key pressed:', e.key);
+  }, []);
 
-        // Find @ symbol before cursor
-        const beforeCursor = text.substring(0, cursorPos);
-        const atIndex = beforeCursor.lastIndexOf('@');
+  // Handle paste events for email formatting
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent) => {
+      const pastedText = e.clipboardData.getData('text/plain');
 
-        if (atIndex !== -1) {
-          const afterAt = beforeCursor.substring(atIndex + 1);
+      // Check if pasted text is an email address
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (emailRegex.test(pastedText.trim())) {
+        e.preventDefault();
 
-          // Check if there's a space after @ (which would end the mention)
-          if (!afterAt.includes(' ') && !afterAt.includes('\n')) {
-            setShowMentions(true);
-            setSelectedMentionIndex(0);
-            searchMentionUsers(afterAt);
-
-            // Calculate position for mention dropdown
-            const rect = range.getBoundingClientRect();
-            const editorRect = editorRef.current!.getBoundingClientRect();
-            setMentionPosition({
-              top: rect.bottom - editorRect.top + 5,
-              left: rect.left - editorRect.left,
-            });
-            return;
-          }
-        }
+        // Insert the email as a clickable link
+        const emailLink = `<a href="mailto:${pastedText.trim()}" class="text-blue-600 hover:text-blue-800 underline">${pastedText.trim()}</a>`;
+        execCommand('insertHTML', emailLink);
       }
+      // For non-email text, let the default paste behavior handle it
+    },
+    [execCommand]
+  );
+
+  // Handle emoji picker
+  const handleEmojiPicker = useCallback(() => {
+    if (disabled) return;
+
+    // Try to use native emoji picker if available
+    if ('showPicker' in HTMLInputElement.prototype) {
+      // Create a temporary input element to trigger the emoji picker
+      const tempInput = document.createElement('input');
+      tempInput.type = 'text';
+      tempInput.style.position = 'absolute';
+      tempInput.style.left = '-9999px';
+      tempInput.style.opacity = '0';
+
+      document.body.appendChild(tempInput);
+      tempInput.focus();
+
+      try {
+        // Try to show the picker
+        (
+          tempInput as HTMLInputElement & { showPicker?: () => void }
+        ).showPicker?.();
+
+        // Listen for input to capture emoji
+        const handleEmojiInput = (e: Event) => {
+          const target = e.target as HTMLInputElement;
+          if (target.value) {
+            editorRef.current?.focus();
+            execCommand('insertText', target.value);
+          }
+          document.body.removeChild(tempInput);
+        };
+
+        tempInput.addEventListener('input', handleEmojiInput, { once: true });
+
+        // Cleanup if user doesn't select anything
+        setTimeout(() => {
+          if (document.body.contains(tempInput)) {
+            document.body.removeChild(tempInput);
+          }
+        }, 5000);
+      } catch (err) {
+        // Fallback if showPicker fails
+        console.warn('Native emoji picker failed:', err);
+        document.body.removeChild(tempInput);
+        showEmojiPickerFallback();
+      }
+    } else {
+      // Fallback for browsers that don't support showPicker
+      showEmojiPickerFallback();
+    }
+  }, [disabled, execCommand]);
+
+  // Fallback emoji picker instructions
+  const showEmojiPickerFallback = useCallback(() => {
+    const userAgent = navigator.userAgent.toLowerCase();
+    const isWindows = userAgent.includes('windows');
+    const isMac = userAgent.includes('mac');
+
+    let shortcut = '';
+    if (isWindows) {
+      shortcut = 'Windows key + . (period) or Windows key + ;';
+    } else if (isMac) {
+      shortcut = 'Cmd + Ctrl + Space';
+    } else {
+      shortcut = "your system's emoji shortcut";
     }
 
-    setShowMentions(false);
-  }, [onChange, searchMentionUsers]);
+    alert(`To insert emojis, use ${shortcut}`);
+  }, []);
 
-  // Handle mention selection
-  const insertMention = useCallback(
-    (user: User) => {
-      if (!editorRef.current) return;
+  // Handle file upload
+  const handleFileUpload = useCallback(() => {
+    if (disabled) return;
 
-      const selection = window.getSelection();
-      if (selection && selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        const textNode = range.startContainer;
+    try {
+      // Create a hidden file input
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.multiple = true;
+      fileInput.accept = 'image/*,application/pdf,.doc,.docx,.txt';
+      fileInput.style.display = 'none';
 
-        if (textNode.nodeType === Node.TEXT_NODE) {
-          const text = textNode.textContent || '';
-          const cursorPos = range.startOffset;
-          const beforeCursor = text.substring(0, cursorPos);
-          const atIndex = beforeCursor.lastIndexOf('@');
+      // Handle file selection
+      const handleFileChange = (e: Event) => {
+        try {
+          const target = e.target as HTMLInputElement;
+          const files = target.files;
 
-          if (atIndex !== -1) {
-            // Replace @query with @mention
-            const beforeAt = text.substring(0, atIndex);
-            const afterCursor = text.substring(cursorPos);
+          if (files && files.length > 0) {
+            // Validate file sizes (max 10MB per file)
+            const maxSize = 10 * 1024 * 1024; // 10MB
+            const oversizedFiles = Array.from(files).filter(
+              (file) => file.size > maxSize
+            );
 
-            const mentionSpan = document.createElement('span');
-            mentionSpan.className =
-              'mention bg-blue-100 text-blue-800 px-1 rounded';
-            mentionSpan.contentEditable = 'false';
-            mentionSpan.textContent = `@${user.name}`;
-            mentionSpan.setAttribute('data-user-id', user.id);
+            if (oversizedFiles.length > 0) {
+              alert(
+                `The following files are too large (max 10MB): ${oversizedFiles
+                  .map((f) => f.name)
+                  .join(', ')}`
+              );
+              return;
+            }
 
-            // Create new text nodes
-            const beforeNode = document.createTextNode(beforeAt);
-            const afterNode = document.createTextNode(' ' + afterCursor);
-
-            // Replace the text node
-            const parent = textNode.parentNode!;
-            parent.insertBefore(beforeNode, textNode);
-            parent.insertBefore(mentionSpan, textNode);
-            parent.insertBefore(afterNode, textNode);
-            parent.removeChild(textNode);
-
-            // Set cursor after mention
-            const newRange = document.createRange();
-            newRange.setStartAfter(mentionSpan);
-            newRange.collapse(true);
-            selection.removeAllRanges();
-            selection.addRange(newRange);
-
-            onChange(editorRef.current.innerHTML);
+            // Call the onAttachmentClick callback if provided
+            if (onAttachmentClick) {
+              onAttachmentClick();
+            } else {
+              // Default behavior: show file names in the editor
+              const fileNames = Array.from(files)
+                .map((file) => file.name)
+                .join(', ');
+              editorRef.current?.focus();
+              execCommand('insertText', `[Attached files: ${fileNames}]`);
+            }
+          }
+        } catch (error) {
+          console.error('Error handling file selection:', error);
+          alert(
+            'An error occurred while processing the selected files. Please try again.'
+          );
+        } finally {
+          // Clean up
+          if (document.body.contains(fileInput)) {
+            document.body.removeChild(fileInput);
           }
         }
-      }
+      };
 
-      setShowMentions(false);
-    },
-    [onChange]
-  );
-
-  // Handle keyboard navigation in mentions
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (showMentions && mentionUsers.length > 0) {
-        if (e.key === 'ArrowDown') {
-          e.preventDefault();
-          setSelectedMentionIndex((prev) =>
-            prev < mentionUsers.length - 1 ? prev + 1 : 0
-          );
-        } else if (e.key === 'ArrowUp') {
-          e.preventDefault();
-          setSelectedMentionIndex((prev) =>
-            prev > 0 ? prev - 1 : mentionUsers.length - 1
-          );
-        } else if (e.key === 'Enter') {
-          e.preventDefault();
-          const selectedUser = mentionUsers[selectedMentionIndex];
-          if (selectedUser) {
-            insertMention(selectedUser);
-          }
-        } else if (e.key === 'Escape') {
-          setShowMentions(false);
+      // Handle errors during file input creation
+      const handleError = () => {
+        if (document.body.contains(fileInput)) {
+          document.body.removeChild(fileInput);
         }
-      }
-    },
-    [showMentions, mentionUsers, selectedMentionIndex, insertMention]
-  );
+        alert('Unable to open file picker. Please try again.');
+      };
+
+      fileInput.addEventListener('change', handleFileChange);
+      fileInput.addEventListener('error', handleError);
+      document.body.appendChild(fileInput);
+
+      // Trigger the file picker
+      fileInput.click();
+    } catch (error) {
+      console.error('Error creating file picker:', error);
+      alert('Unable to open file picker. Please try again.');
+    }
+  }, [disabled, onAttachmentClick, execCommand]);
 
   // Update editor content when value changes externally
   useEffect(() => {
@@ -225,19 +295,49 @@ export function RichTextEditor({
     }
   }, [value]);
 
+  // Add selection change listener to update active formats
+  useEffect(() => {
+    const handleSelectionChange = () => {
+      if (document.activeElement === editorRef.current) {
+        updateActiveFormats();
+      }
+    };
+
+    document.addEventListener('selectionchange', handleSelectionChange);
+    return () =>
+      document.removeEventListener('selectionchange', handleSelectionChange);
+  }, [updateActiveFormats]);
+
   return (
     <div className={cn('relative', className)}>
       {/* Toolbar */}
       <div className='space-y-2 mb-4'>
         <div className='flex items-center gap-1'>
-          <Select defaultValue='paragraph'>
+          <Select
+            defaultValue='paragraph'
+            onValueChange={(value) => {
+              if (value === 'heading1') {
+                execCommand('formatBlock', '<h1>');
+              } else if (value === 'heading2') {
+                execCommand('formatBlock', '<h2>');
+              } else {
+                execCommand('formatBlock', '<p>');
+              }
+            }}
+          >
             <SelectTrigger className='w-32 h-8'>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value='paragraph'>Paragraph</SelectItem>
-              <SelectItem value='heading1'>Heading 1</SelectItem>
-              <SelectItem value='heading2'>Heading 2</SelectItem>
+              <SelectItem value='paragraph'>
+                <span className='text-sm'>Paragraph</span>
+              </SelectItem>
+              <SelectItem value='heading1'>
+                <span className='text-lg font-bold'>Heading 1</span>
+              </SelectItem>
+              <SelectItem value='heading2'>
+                <span className='text-base font-semibold'>Heading 2</span>
+              </SelectItem>
             </SelectContent>
           </Select>
 
@@ -247,7 +347,10 @@ export function RichTextEditor({
             type='button'
             variant='ghost'
             size='sm'
-            className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
+            className={cn(
+              'h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700',
+              activeFormats.has('bold') && 'bg-gray-200 dark:bg-gray-600'
+            )}
             onClick={() => execCommand('bold')}
             disabled={disabled}
           >
@@ -257,7 +360,10 @@ export function RichTextEditor({
             type='button'
             variant='ghost'
             size='sm'
-            className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
+            className={cn(
+              'h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700',
+              activeFormats.has('italic') && 'bg-gray-200 dark:bg-gray-600'
+            )}
             onClick={() => execCommand('italic')}
             disabled={disabled}
           >
@@ -267,7 +373,10 @@ export function RichTextEditor({
             type='button'
             variant='ghost'
             size='sm'
-            className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
+            className={cn(
+              'h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700',
+              activeFormats.has('underline') && 'bg-gray-200 dark:bg-gray-600'
+            )}
             onClick={() => execCommand('underline')}
             disabled={disabled}
           >
@@ -280,7 +389,10 @@ export function RichTextEditor({
             type='button'
             variant='ghost'
             size='sm'
-            className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
+            className={cn(
+              'h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700',
+              activeFormats.has('alignLeft') && 'bg-gray-200 dark:bg-gray-600'
+            )}
             onClick={() => execCommand('justifyLeft')}
             disabled={disabled}
           >
@@ -290,7 +402,10 @@ export function RichTextEditor({
             type='button'
             variant='ghost'
             size='sm'
-            className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
+            className={cn(
+              'h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700',
+              activeFormats.has('alignCenter') && 'bg-gray-200 dark:bg-gray-600'
+            )}
             onClick={() => execCommand('justifyCenter')}
             disabled={disabled}
           >
@@ -300,7 +415,10 @@ export function RichTextEditor({
             type='button'
             variant='ghost'
             size='sm'
-            className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
+            className={cn(
+              'h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700',
+              activeFormats.has('alignRight') && 'bg-gray-200 dark:bg-gray-600'
+            )}
             onClick={() => execCommand('justifyRight')}
             disabled={disabled}
           >
@@ -313,7 +431,11 @@ export function RichTextEditor({
             type='button'
             variant='ghost'
             size='sm'
-            className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
+            className={cn(
+              'h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700',
+              activeFormats.has('unorderedList') &&
+                'bg-gray-200 dark:bg-gray-600'
+            )}
             onClick={() => execCommand('insertUnorderedList')}
             disabled={disabled}
           >
@@ -323,7 +445,10 @@ export function RichTextEditor({
             type='button'
             variant='ghost'
             size='sm'
-            className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
+            className={cn(
+              'h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700',
+              activeFormats.has('orderedList') && 'bg-gray-200 dark:bg-gray-600'
+            )}
             onClick={() => execCommand('insertOrderedList')}
             disabled={disabled}
           >
@@ -339,46 +464,23 @@ export function RichTextEditor({
           contentEditable={!disabled}
           onInput={handleInput}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           className={cn(
             'min-h-32 p-3 border rounded-md bg-background text-foreground',
-            'focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring',
-            'prose prose-sm max-w-none',
+            'prose prose-sm max-w-none no-focus-ring',
             disabled && 'opacity-50 cursor-not-allowed',
-            'empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground'
+            'empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground',
+            // Ensure proper list styling
+            '[&_ul]:list-disc [&_ul]:ml-6 [&_ol]:list-decimal [&_ol]:ml-6',
+            '[&_li]:mb-1',
+            // Ensure proper heading styling
+            '[&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-4 [&_h1]:mt-2',
+            '[&_h2]:text-xl [&_h2]:font-semibold [&_h2]:mb-3 [&_h2]:mt-2',
+            '[&_p]:mb-2'
           )}
           data-placeholder={placeholder}
           suppressContentEditableWarning
         />
-
-        {/* Mention Dropdown */}
-        {showMentions && mentionUsers.length > 0 && (
-          <div
-            className='absolute z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-40 overflow-auto'
-            style={{
-              top: mentionPosition.top,
-              left: mentionPosition.left,
-            }}
-          >
-            {mentionUsers.map((user, index) => (
-              <button
-                key={user.id}
-                type='button'
-                className={cn(
-                  'w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2',
-                  index === selectedMentionIndex &&
-                    'bg-gray-50 dark:bg-gray-700'
-                )}
-                onClick={() => insertMention(user)}
-              >
-                <div className='flex-1'>
-                  <div className='font-medium'>{user.name}</div>
-                  <div className='text-sm text-gray-500'>{user.email}</div>
-                </div>
-                <div className='text-xs text-gray-400'>{user.role}</div>
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Action Buttons */}
@@ -388,7 +490,7 @@ export function RichTextEditor({
           variant='ghost'
           size='sm'
           className='hover:bg-gray-100 dark:hover:bg-gray-700'
-          onClick={onAttachmentClick}
+          onClick={handleFileUpload}
           disabled={disabled}
         >
           <Paperclip className='h-4 w-4' />
@@ -398,24 +500,10 @@ export function RichTextEditor({
           variant='ghost'
           size='sm'
           className='hover:bg-gray-100 dark:hover:bg-gray-700'
+          onClick={handleEmojiPicker}
           disabled={disabled}
         >
           <Smile className='h-4 w-4' />
-        </Button>
-        <Button
-          type='button'
-          variant='ghost'
-          size='sm'
-          className='hover:bg-gray-100 dark:hover:bg-gray-700'
-          onClick={() => {
-            if (editorRef.current) {
-              editorRef.current.focus();
-              execCommand('insertText', '@');
-            }
-          }}
-          disabled={disabled}
-        >
-          <AtSign className='h-4 w-4' />
         </Button>
       </div>
     </div>

@@ -293,28 +293,29 @@ export function CreateTicketForm({
                 onSubmit={form.handleSubmit(handleSubmit)}
                 className='space-y-4'
               >
-                {/* Assign To Field - Only Agents */}
+                {/* Assign To Field - Admins and Agents */}
                 <FormField
                   control={form.control}
                   name='assignedTo'
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className='text-sm font-medium text-gray-700 dark:text-gray-300'>
-                        Assign To (Agents)
+                        Assign To (Admins & Agents)
                       </FormLabel>
                       <UserAutocomplete
                         value={field.value}
                         onChange={field.onChange}
-                        placeholder='Type email to search agents...'
-                        roleFilter='agent'
+                        placeholder='Select user to assign...'
+                        roleFilter={['admin', 'agent']}
                         multiple={false}
-                        className='h-10'
+                        dropdownOnly={true}
+                        className='h-10 no-focus-ring'
                       />
                     </FormItem>
                   )}
                 />
 
-                {/* CC Field - All Users */}
+                {/* CC Field - Admins and Agents */}
                 <FormField
                   control={form.control}
                   name='cc'
@@ -326,9 +327,10 @@ export function CreateTicketForm({
                       <UserAutocomplete
                         value={field.value || []}
                         onChange={field.onChange}
-                        placeholder='Type email to search users...'
+                        placeholder='Type email to search users or enter email...'
+                        roleFilter={['admin', 'agent']}
                         multiple={true}
-                        className='h-10'
+                        className='h-10 no-focus-ring'
                       />
                     </FormItem>
                   )}
