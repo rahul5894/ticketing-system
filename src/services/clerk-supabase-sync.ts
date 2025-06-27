@@ -124,11 +124,26 @@ export class ClerkSupabaseSync {
 
       // Map Clerk organization roles to Supabase roles
       const clerkRole = user.publicMetadata?.role as string;
-      console.log('Raw Clerk role from metadata:', clerkRole);
+      console.log('🔍 Raw Clerk role from metadata:', clerkRole);
+      console.log('🔍 Full user publicMetadata:', user.publicMetadata);
 
-      // Clerk role mapping to Supabase roles
+      // Comprehensive Clerk role mapping to Supabase roles based on Clerk organization role keys
       const roleMapping: Record<string, string> = {
-        'org:admin': 'super_admin',
+        // Clerk organization role keys (from Clerk dashboard)
+        'org:super_admin': 'super_admin', // Super Admin role key
+        'org:admin': 'admin', // Admin role key
+        'org:agent': 'agent', // Agent role key
+        'org:member': 'user', // User/Member role key
+
+        // Display name mappings (fallback)
+        'Super Admin': 'super_admin',
+        Admin: 'admin',
+        Agent: 'agent',
+        User: 'user',
+        Member: 'user',
+
+        // Lowercase variants (fallback)
+        super_admin: 'super_admin',
         admin: 'admin',
         agent: 'agent',
         member: 'user',
@@ -139,9 +154,9 @@ export class ClerkSupabaseSync {
       const validRoles = ['user', 'agent', 'admin', 'super_admin'];
       const userRole = validRoles.includes(mappedRole) ? mappedRole : 'user';
 
-      console.log('Clerk role:', clerkRole);
-      console.log('Mapped role:', mappedRole);
-      console.log('Final validated role:', userRole);
+      console.log('🎯 Clerk role:', clerkRole);
+      console.log('🎯 Mapped role:', mappedRole);
+      console.log('🎯 Final validated role:', userRole);
 
       const userData: User = {
         clerk_id: user.id,
