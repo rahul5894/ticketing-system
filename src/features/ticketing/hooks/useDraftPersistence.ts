@@ -1,27 +1,14 @@
 import { useCallback, useEffect } from 'react';
 import { UseFormReturn } from 'react-hook-form';
-
-// Types
-type TicketPriority = 'low' | 'medium' | 'high' | 'urgent';
-type Department = 'sales' | 'support' | 'marketing' | 'technical';
-
-interface CreateTicketFormData {
-  title: string;
-  description: string;
-  priority: TicketPriority;
-  department: Department;
-  assignedTo: string[];
-  cc?: string | undefined;
-  attachments: File[];
-}
+import { CreateTicketFormData } from '../components/CreateTicketForm';
 
 interface TicketDraft {
   title: string;
   description: string;
-  priority: TicketPriority;
-  department: Department;
-  assignedTo: string[];
-  cc?: string | undefined;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  department: 'sales' | 'support' | 'marketing' | 'technical';
+  assignedTo?: string; // Single agent assignment
+  cc: string[]; // Multiple users for CC
   // Note: attachments are not persisted to localStorage
 }
 
@@ -63,8 +50,8 @@ export function useDraftPersistence(form: UseFormReturn<CreateTicketFormData>) {
     }
   }, []);
 
-  // Load draft on component mount
-  useEffect(() => {
+  // Load draft manually (opt-in, not automatic)
+  const loadDraftIntoForm = useCallback(() => {
     const draft = loadDraft();
     if (draft) {
       // Reset form with draft data, preserving attachments as empty array
@@ -72,7 +59,9 @@ export function useDraftPersistence(form: UseFormReturn<CreateTicketFormData>) {
         ...draft,
         attachments: [], // Don't persist file objects
       });
+      return true; // Indicates draft was loaded
     }
+    return false; // No draft found
   }, [form, loadDraft]);
 
   // Watch form changes and save draft (debounced)
@@ -92,10 +81,10 @@ export function useDraftPersistence(form: UseFormReturn<CreateTicketFormData>) {
           description: data.description || '',
           priority: data.priority || 'high',
           department: data.department || 'marketing',
-          assignedTo: (data.assignedTo || []).filter(
-            (item): item is string => typeof item === 'string'
+          assignedTo: data.assignedTo || undefined, // Single string, no filtering needed
+          cc: (data.cc || []).filter(
+            (id): id is string => typeof id === 'string'
           ),
-          cc: data.cc,
           // Don't include attachments in draft
         };
 
@@ -117,7 +106,7 @@ export function useDraftPersistence(form: UseFormReturn<CreateTicketFormData>) {
   return {
     saveDraft,
     loadDraft,
+    loadDraftIntoForm,
     clearDraft,
   };
 }
-

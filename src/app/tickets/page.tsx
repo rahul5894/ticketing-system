@@ -6,7 +6,10 @@ import Link from 'next/link';
 import { AppLayout } from '@/features/shared/components/AppLayout';
 import { RecentTickets } from '@/features/ticketing/components/RecentTickets';
 import { TicketDetail } from '@/features/ticketing/components/TicketDetail';
-import { CreateTicketForm } from '@/features/ticketing/components/CreateTicketForm';
+import {
+  CreateTicketForm,
+  CreateTicketFormData,
+} from '@/features/ticketing/components/CreateTicketForm';
 import { VisitorInformation } from '@/features/visitor/components/VisitorInformation';
 import { useTicketingStore } from '@/features/ticketing/store/use-ticketing-store';
 import { TenantProvider } from '@/features/tenant/context/TenantContext';
@@ -29,16 +32,6 @@ import {
   DialogTitle,
 } from '@/features/shared/components/ui/dialog';
 import { Button } from '@/features/shared/components/ui/button';
-
-interface CreateTicketFormData {
-  title: string;
-  description: string;
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  department: 'sales' | 'support' | 'marketing' | 'technical';
-  assignedTo: string[];
-  cc?: string | undefined;
-  attachments: File[];
-}
 
 function TicketsPageContent() {
   const { user, isLoaded } = useUser();
@@ -249,13 +242,13 @@ function TicketsPageContent() {
         {/* Recent Tickets Sidebar */}
         <div className='w-96 shrink-0 h-full flex flex-col'>
           {/* Sync Status Indicator */}
-          <div className='p-4 border-b border-gray-200 dark:border-gray-700'>
+          <div className='p-4 border-b border-gray-200 dark:border-gray-700 hidden'>
             <SyncStatusIndicator
               syncStatus={syncStatus}
               onRetry={triggerSync}
             />
-            {/* Debug info for development */}
-            {process.env.NODE_ENV === 'development' && (
+            {/* Debug info for development - hidden since sync is working properly */}
+            {process.env.NODE_ENV === 'development' && false && (
               <SyncDebugInfo
                 syncStatus={syncStatus}
                 syncData={syncData}

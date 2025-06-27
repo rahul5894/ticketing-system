@@ -1,6 +1,6 @@
 'use client';
 
-import { useUser, useAuth as useClerkAuth } from '@clerk/nextjs';
+import { useUser, useAuth as useClerkAuth, useSession } from '@clerk/nextjs';
 import { useTenant } from '@/features/tenant/context/TenantContext';
 import { getDomainFromWindow, DomainInfoState } from '@/lib/domain';
 import { useEffect, useState } from 'react';
@@ -26,6 +26,7 @@ export interface AuthState {
  */
 export function useAuth(): AuthState {
   const { user, isLoaded, isSignedIn } = useUser();
+  const { session } = useSession();
   const { tenant, tenantId } = useTenant();
   const [domainInfo, setDomainInfo] = useState<DomainInfoState>(null);
 
@@ -33,12 +34,112 @@ export function useAuth(): AuthState {
     setDomainInfo(getDomainFromWindow());
   }, []);
 
-  // Determine user role from Clerk metadata or tenant context
-  const userRole = (user?.publicMetadata?.role as string) || 'member';
+  // Get user role from multiple sources with proper fallback
+  const [userRole, setUserRole] = useState<string>('user');
+
+  useEffect(() => {
+    const getRole = async () => {
+      if (!user?.id) return;
+
+      try {
+        // 1. Try to get role from JWT claims (now with comprehensive claims)
+        if (session) {
+          try {
+            const token = await session.getToken();
+            if (token && token.split('.').length === 3) {
+              const payloadPart = token.split('.')[1];
+              if (payloadPart) {
+                const payload = JSON.parse(atob(payloadPart));
+
+                // Check multiple sources in JWT for role
+                const roleFromJWT = payload.role;
+                const userMetadata = payload.user_metadata;
+                const orgPermissions = payload.org_permissions;
+
+                console.log('🎯 JWT Claims Debug:', {
+                  role: roleFromJWT,
+                  user_metadata: userMetadata,
+                  org_permissions: orgPermissions,
+                  email: payload.email,
+                  tenant_id: payload.tenant_id,
+                });
+
+                // Priority 1: Organization role
+                if (roleFromJWT && roleFromJWT !== 'authenticated') {
+                  console.log('🎯 Role from JWT org.role:', roleFromJWT);
+                  setUserRole(roleFromJWT);
+                  return;
+                }
+
+                // Priority 2: User metadata role
+                if (
+                  userMetadata &&
+                  typeof userMetadata === 'object' &&
+                  userMetadata.role
+                ) {
+                  console.log(
+                    '🎯 Role from JWT user_metadata:',
+                    userMetadata.role
+                  );
+                  setUserRole(userMetadata.role);
+                  return;
+                }
+              }
+            }
+          } catch (error) {
+            console.warn('Could not decode JWT token:', error);
+          }
+        }
+
+        // 2. Fallback to publicMetadata
+        const roleFromMetadata = user?.publicMetadata?.role as string;
+        if (roleFromMetadata) {
+          console.log('🎯 Role from publicMetadata:', roleFromMetadata);
+          setUserRole(roleFromMetadata);
+          return;
+        }
+
+        // 3. Special case for super admin email (temporary until JWT claims are fully configured)
+        if (
+          user.emailAddresses?.[0]?.emailAddress === 'rohitjohn5822@gmail.com'
+        ) {
+          console.log('🎯 Role from email fallback: super_admin');
+          setUserRole('super_admin');
+          return;
+        }
+
+        // 4. Default fallback
+        console.log('🎯 Using default role: user');
+        setUserRole('user');
+      } catch (error) {
+        console.error('Error getting user role:', error);
+        setUserRole('user');
+      }
+    };
+
+    if (isLoaded && user) {
+      getRole();
+    }
+  }, [session, user, isLoaded]);
+
   const isSuperAdmin = userRole === 'super_admin';
   const isAdmin = userRole === 'admin' || isSuperAdmin;
   const isAgent = userRole === 'agent';
-  const isUser = userRole === 'member' || userRole === 'user';
+  const isUser = userRole === 'user' || userRole === 'member';
+
+  // Debug logging for development
+  if (process.env.NODE_ENV === 'development' && user) {
+    console.log('🔍 Auth Debug Info:', {
+      userId: user.id,
+      email: user.emailAddresses?.[0]?.emailAddress,
+      publicMetadata: user.publicMetadata,
+      userRole,
+      isSuperAdmin,
+      isAdmin,
+      isAgent,
+      isUser,
+    });
+  }
 
   // Determine if authentication is required based on domain
   const requiresAuth = domainInfo?.isSubdomain || false;
@@ -66,42 +167,74 @@ export function usePermissions() {
 
   const hasPermission = (permission: string): boolean => {
     // Super Admin and Admin have all permissions
-    if (isSuperAdmin || isAdmin) return true;
+    if (isSuperAdmin || isAdmin) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log(
+          `✅ Permission "${permission}" granted for ${
+            isSuperAdmin ? 'super_admin' : 'admin'
+          }`
+        );
+      }
+      return true;
+    }
 
     // Check tenant-specific permissions
     const tenantFeatures = tenant?.settings?.features || [];
 
+    let hasAccess = false;
     switch (permission) {
       case 'tickets.view':
-        return isUser || isAgent;
+        hasAccess = isUser || isAgent;
+        break;
       case 'tickets.create':
-        return isSuperAdmin || isAdmin; // Only Super Admin and Admin can create tickets
+        hasAccess = isSuperAdmin || isAdmin; // Only Super Admin and Admin can create tickets
+        break;
       case 'tickets.update':
-        return isAgent || isAdmin || isSuperAdmin;
+        hasAccess = isAgent || isAdmin || isSuperAdmin;
+        break;
       case 'tickets.delete':
-        return isAdmin || isSuperAdmin;
+        hasAccess = isAdmin || isSuperAdmin;
+        break;
       case 'tickets.assign':
-        return isAdmin || isSuperAdmin;
+        hasAccess = isAdmin || isSuperAdmin;
+        break;
       case 'tickets.priority.change':
-        return isAdmin || isSuperAdmin; // Only Admin/Super Admin can change priority
+        hasAccess = isAdmin || isSuperAdmin; // Only Admin/Super Admin can change priority
+        break;
       case 'tickets.department.change':
-        return isAdmin || isSuperAdmin; // Only Admin/Super Admin can change department
+        hasAccess = isAdmin || isSuperAdmin; // Only Admin/Super Admin can change department
+        break;
       case 'analytics.view':
-        return (
+        hasAccess =
           (isAgent || isAdmin || isSuperAdmin) &&
-          tenantFeatures.includes('analytics')
-        );
+          tenantFeatures.includes('analytics');
+        break;
       case 'integrations.manage':
-        return (
-          (isAdmin || isSuperAdmin) && tenantFeatures.includes('integrations')
-        );
+        hasAccess =
+          (isAdmin || isSuperAdmin) && tenantFeatures.includes('integrations');
+        break;
       case 'users.manage':
-        return isAdmin || isSuperAdmin;
+        hasAccess = isAdmin || isSuperAdmin;
+        break;
       case 'settings.manage':
-        return isAdmin || isSuperAdmin;
+        hasAccess = isAdmin || isSuperAdmin;
+        break;
       default:
-        return false;
+        hasAccess = false;
     }
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`🔐 Permission Check: "${permission}"`, {
+        hasAccess,
+        isSuperAdmin,
+        isAdmin,
+        isAgent,
+        isUser,
+        tenantFeatures,
+      });
+    }
+
+    return hasAccess;
   };
 
   const canAccessFeature = (feature: string): boolean => {
@@ -218,4 +351,3 @@ export function useTenantAuth() {
     isLoading: !isLoaded || hasAccess === null,
   };
 }
-

@@ -8,7 +8,6 @@ import { useUser } from '@clerk/nextjs';
 
 import { Button } from '@/features/shared/components/ui/button';
 import { Input } from '@/features/shared/components/ui/input';
-import { Textarea } from '@/features/shared/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -16,48 +15,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/features/shared/components/ui/select';
-
-import { Separator } from '@/features/shared/components/ui/separator';
 import {
   Form,
-  FormControl,
   FormField,
   FormItem,
   FormLabel,
-  FormMessage,
 } from '@/features/shared/components/ui/form';
+import { UserAutocomplete } from '@/features/shared/components/UserAutocomplete';
+import { RichTextEditor } from '@/features/shared/components/RichTextEditor';
 import { cn } from '@/lib/utils';
-import {
-  Bold,
-  Italic,
-  Underline,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
-  List,
-  ListOrdered,
-  Link,
-  Paperclip,
-  Smile,
-  AtSign,
-  Send,
-  Trash2,
-} from 'lucide-react';
+import { Send, Trash2 } from 'lucide-react';
 import { useDraftPersistence } from '../hooks/useDraftPersistence';
 
-// Types
-type TicketPriority = 'low' | 'medium' | 'high' | 'urgent';
-type Department = 'sales' | 'support' | 'marketing' | 'technical';
-
-interface CreateTicketFormData {
-  title: string;
-  description: string;
-  priority: TicketPriority;
-  department: Department;
-  assignedTo: string[];
-  cc?: string | undefined;
-  attachments: File[];
-}
+// Types will be inferred from Zod schema below
 
 interface CreateTicketFormProps {
   onSubmit?: (data: CreateTicketFormData & { attachments: File[] }) => void;
@@ -72,10 +42,13 @@ const CreateTicketFormSchema = z.object({
   description: z.string().min(1, 'Description is required'),
   priority: z.enum(['low', 'medium', 'high', 'urgent']),
   department: z.enum(['sales', 'support', 'marketing', 'technical']),
-  assignedTo: z.array(z.string()),
-  cc: z.string().optional(),
+  assignedTo: z.string().optional(), // Single agent assignment
+  cc: z.array(z.string()), // Multiple users for CC
   attachments: z.array(z.instanceof(File)),
 });
+
+// Infer the type from the schema to ensure consistency
+export type CreateTicketFormData = z.infer<typeof CreateTicketFormSchema>;
 
 // Dot colors for dropdowns (matching TicketDetail)
 const priorityDotColors = {
@@ -111,8 +84,8 @@ export function CreateTicketForm({
       description: '',
       priority: 'high',
       department: 'marketing',
-      assignedTo: [],
-      cc: '',
+      assignedTo: undefined, // Single agent assignment
+      cc: [], // Multiple users for CC
       attachments: [],
     },
   });
@@ -151,6 +124,8 @@ export function CreateTicketForm({
           priority: data.priority,
           department: data.department,
           tenant_id: tenantId,
+          assigned_to: data.assignedTo,
+          cc: data.cc,
         }),
       });
 
@@ -181,8 +156,8 @@ export function CreateTicketForm({
       description: '',
       priority: 'high',
       department: 'marketing',
-      assignedTo: [],
-      cc: '',
+      assignedTo: undefined,
+      cc: [],
       attachments: [],
     });
   };
@@ -318,35 +293,43 @@ export function CreateTicketForm({
                 onSubmit={form.handleSubmit(handleSubmit)}
                 className='space-y-4'
               >
-                {/* Assign To Field */}
-                <div>
-                  <label className='text-sm font-medium text-gray-700 dark:text-gray-300 block mb-2'>
-                    Assign To
-                  </label>
-                  <Input
-                    placeholder='Type @ to mention users'
-                    className='h-10'
-                  />
-                </div>
+                {/* Assign To Field - Only Agents */}
+                <FormField
+                  control={form.control}
+                  name='assignedTo'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className='text-sm font-medium text-gray-700 dark:text-gray-300'>
+                        Assign To (Agents)
+                      </FormLabel>
+                      <UserAutocomplete
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder='Type email to search agents...'
+                        roleFilter='agent'
+                        multiple={false}
+                        className='h-10'
+                      />
+                    </FormItem>
+                  )}
+                />
 
-                {/* CC Field */}
+                {/* CC Field - All Users */}
                 <FormField
                   control={form.control}
                   name='cc'
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className='text-sm font-medium text-gray-700 dark:text-gray-300'>
-                        CC (Email addresses)
+                        CC (Carbon Copy)
                       </FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder='email1@example.com, email2@example.com'
-                          className='h-10'
-                          value={field.value || ''}
-                          onChange={field.onChange}
-                        />
-                      </FormControl>
-                      <FormMessage />
+                      <UserAutocomplete
+                        value={field.value || []}
+                        onChange={field.onChange}
+                        placeholder='Type email to search users...'
+                        multiple={true}
+                        className='h-10'
+                      />
                     </FormItem>
                   )}
                 />
@@ -360,14 +343,11 @@ export function CreateTicketForm({
                       <FormLabel className='text-sm font-medium text-gray-700 dark:text-gray-300'>
                         Title *
                       </FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder='Brief description of the issue'
-                          className='h-10'
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
+                      <Input
+                        placeholder='Brief description of the issue'
+                        className='h-10'
+                        {...field}
+                      />
                     </FormItem>
                   )}
                 />
@@ -376,170 +356,48 @@ export function CreateTicketForm({
           </div>
         </div>
 
-        {/* Rich Text Editor Section - Fixed at bottom (matching TicketDetail) */}
+        {/* Rich Text Editor Section */}
         <div className='border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shrink-0'>
           <div className='p-6'>
             <div className='space-y-4'>
-              {/* Clean two-line formatting toolbar (exactly like TicketDetail) */}
-              <div className='space-y-2'>
-                {/* First line - Paragraph selector and text formatting */}
-                <div className='flex items-center gap-1'>
-                  <Select defaultValue='paragraph'>
-                    <SelectTrigger className='w-32 h-8'>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value='paragraph'>Paragraph</SelectItem>
-                      <SelectItem value='heading1'>Heading 1</SelectItem>
-                      <SelectItem value='heading2'>Heading 2</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  <Separator orientation='vertical' className='h-6 mx-1' />
-
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='sm'
-                    className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  >
-                    <Bold className='h-4 w-4' />
-                  </Button>
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='sm'
-                    className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  >
-                    <Italic className='h-4 w-4' />
-                  </Button>
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='sm'
-                    className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  >
-                    <Underline className='h-4 w-4' />
-                  </Button>
-
-                  <Separator orientation='vertical' className='h-6 mx-1' />
-
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='sm'
-                    className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  >
-                    <AlignLeft className='h-4 w-4' />
-                  </Button>
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='sm'
-                    className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  >
-                    <AlignCenter className='h-4 w-4' />
-                  </Button>
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='sm'
-                    className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  >
-                    <AlignRight className='h-4 w-4' />
-                  </Button>
-
-                  <Separator orientation='vertical' className='h-6 mx-1' />
-
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='sm'
-                    className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  >
-                    <List className='h-4 w-4' />
-                  </Button>
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='sm'
-                    className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  >
-                    <ListOrdered className='h-4 w-4' />
-                  </Button>
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='sm'
-                    className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  >
-                    <Link className='h-4 w-4' />
-                  </Button>
-                </div>
-              </div>
-
-              {/* Text area (exactly like TicketDetail) */}
               <FormField
                 control={form.control}
                 name='description'
                 render={({ field }) => (
-                  <Textarea
-                    {...field}
-                    placeholder='Describe the issue in detail...'
-                    className='min-h-32 resize-none border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800'
-                  />
+                  <FormItem>
+                    <RichTextEditor
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder='Describe the issue in detail...'
+                      disabled={isSubmitting}
+                      onAttachmentClick={() => {
+                        // TODO: Implement file attachment
+                        console.log('Attachment clicked');
+                      }}
+                    />
+                  </FormItem>
                 )}
               />
 
-              {/* Action buttons (exactly like TicketDetail) */}
-              <div className='flex items-center justify-between'>
-                <div className='flex items-center gap-2'>
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='sm'
-                    className='hover:bg-gray-100 dark:hover:bg-gray-700'
-                  >
-                    <Paperclip className='h-4 w-4' />
-                  </Button>
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='sm'
-                    className='hover:bg-gray-100 dark:hover:bg-gray-700'
-                  >
-                    <Smile className='h-4 w-4' />
-                  </Button>
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='sm'
-                    className='hover:bg-gray-100 dark:hover:bg-gray-700'
-                  >
-                    <AtSign className='h-4 w-4' />
-                  </Button>
-                </div>
-                <div className='flex items-center gap-2'>
-                  <Button
-                    type='button'
-                    variant='outline'
-                    onClick={handleDiscard}
-                    disabled={isSubmitting}
-                  >
-                    <Trash2 className='h-4 w-4 mr-1' />
-                    Discard
-                  </Button>
-                  <Button
-                    type='submit'
-                    disabled={isSubmitting || isCreating}
-                    onClick={form.handleSubmit(handleSubmit)}
-                  >
-                    <Send className='h-4 w-4 mr-1' />
-                    {isSubmitting || isCreating
-                      ? 'Creating...'
-                      : 'Create Ticket'}
-                  </Button>
-                </div>
+              {/* Submit buttons */}
+              <div className='flex items-center justify-end gap-2'>
+                <Button
+                  type='button'
+                  variant='outline'
+                  onClick={handleDiscard}
+                  disabled={isSubmitting}
+                >
+                  <Trash2 className='h-4 w-4 mr-1' />
+                  Discard
+                </Button>
+                <Button
+                  type='submit'
+                  disabled={isSubmitting || isCreating}
+                  onClick={form.handleSubmit(handleSubmit)}
+                >
+                  <Send className='h-4 w-4 mr-1' />
+                  {isSubmitting || isCreating ? 'Creating...' : 'Create Ticket'}
+                </Button>
               </div>
             </div>
           </div>

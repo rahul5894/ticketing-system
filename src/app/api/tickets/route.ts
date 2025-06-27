@@ -23,7 +23,15 @@ export async function POST(request: NextRequest) {
 
     // Parse the request body
     const body = await request.json();
-    const { title, description, priority, department, tenant_id } = body;
+    const {
+      title,
+      description,
+      priority,
+      department,
+      tenant_id,
+      assigned_to,
+      cc,
+    } = body;
 
     // Validate required fields
     if (!title || !description || !priority || !department || !tenant_id) {
@@ -63,17 +71,33 @@ export async function POST(request: NextRequest) {
     }
 
     // Insert the ticket into Supabase
+    const ticketData: {
+      title: string;
+      description: string;
+      priority: string;
+      department: string;
+      tenant_id: string;
+      created_by: string;
+      status: string;
+      assigned_to?: string;
+    } = {
+      title,
+      description,
+      priority,
+      department,
+      tenant_id: tenant_uuid,
+      created_by: userId,
+      status: 'open',
+    };
+
+    // Add assigned_to if provided (should be a single user ID for agents)
+    if (assigned_to && Array.isArray(assigned_to) && assigned_to.length > 0) {
+      ticketData.assigned_to = assigned_to[0]; // Take first agent
+    }
+
     const { data, error } = await supabase
       .from('tickets')
-      .insert({
-        title,
-        description,
-        priority,
-        department,
-        tenant_id: tenant_uuid,
-        created_by: userId,
-        status: 'open',
-      })
+      .insert(ticketData)
       .select()
       .single();
 
@@ -83,6 +107,11 @@ export async function POST(request: NextRequest) {
         { error: 'Failed to create ticket' },
         { status: 500 }
       );
+    }
+
+    // TODO: Handle CC users when ticket_cc table is implemented
+    if (cc && Array.isArray(cc) && cc.length > 0) {
+      console.log('CC users provided but not yet implemented:', cc);
     }
 
     return NextResponse.json(data, { status: 201 });
