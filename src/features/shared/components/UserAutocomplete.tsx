@@ -492,7 +492,7 @@ export function UserAutocomplete({
               <Badge
                 key={user.id}
                 variant='secondary'
-                className='flex items-center gap-1 pr-1 bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
+                className='flex items-center gap-1 pr-1 bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 relative'
               >
                 <User className='h-3 w-3' />
                 <span className='text-xs'>{user.email}</span>
@@ -500,14 +500,16 @@ export function UserAutocomplete({
                   type='button'
                   variant='ghost'
                   size='sm'
-                  className='h-4 w-4 p-0 hover:bg-gray-300 dark:hover:bg-gray-500 rounded-full'
+                  className='h-4 w-4 p-0 hover:bg-gray-300 dark:hover:bg-gray-500 rounded-full cursor-pointer pointer-events-auto relative z-10'
                   onClick={(e) => {
+                    e.preventDefault();
                     e.stopPropagation();
                     handleRemoveUser(user.id);
                   }}
                   disabled={disabled}
+                  tabIndex={0}
                 >
-                  <X className='h-3 w-3' />
+                  <X className='h-3 w-3 pointer-events-none' />
                 </Button>
               </Badge>
             ))}

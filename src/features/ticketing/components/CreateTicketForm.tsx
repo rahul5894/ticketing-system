@@ -24,7 +24,7 @@ import {
 import { UserAutocomplete } from '@/features/shared/components/UserAutocomplete';
 import { RichTextEditor } from '@/features/shared/components/RichTextEditor';
 import { cn } from '@/lib/utils';
-import { Send, Trash2, Paperclip, Smile } from 'lucide-react';
+import { Send, Trash2 } from 'lucide-react';
 import { useDraftPersistence } from '../hooks/useDraftPersistence';
 
 // Types will be inferred from Zod schema below
@@ -377,60 +377,25 @@ export function CreateTicketForm({
                 )}
               />
 
-              {/* Submit buttons with attachment and emoji buttons */}
-              <div className='flex items-center justify-between gap-2'>
-                {/* Left side - Attachment and Emoji buttons */}
-                <div className='flex items-center gap-2'>
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='sm'
-                    className='hover:bg-gray-100 dark:hover:bg-gray-700'
-                    onClick={() => {
-                      // TODO: Implement file attachment
-                      console.log('Attachment clicked');
-                    }}
-                    disabled={isSubmitting}
-                  >
-                    <Paperclip className='h-4 w-4' />
-                  </Button>
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='sm'
-                    className='hover:bg-gray-100 dark:hover:bg-gray-700'
-                    onClick={() => {
-                      // TODO: Implement emoji picker
-                      console.log('Emoji clicked');
-                    }}
-                    disabled={isSubmitting}
-                  >
-                    <Smile className='h-4 w-4' />
-                  </Button>
-                </div>
-
-                {/* Right side - Discard and Create buttons */}
-                <div className='flex items-center gap-2'>
-                  <Button
-                    type='button'
-                    variant='outline'
-                    onClick={handleDiscard}
-                    disabled={isSubmitting}
-                  >
-                    <Trash2 className='h-4 w-4 mr-1' />
-                    Discard
-                  </Button>
-                  <Button
-                    type='submit'
-                    disabled={isSubmitting || isCreating}
-                    onClick={form.handleSubmit(handleSubmit)}
-                  >
-                    <Send className='h-4 w-4 mr-1' />
-                    {isSubmitting || isCreating
-                      ? 'Creating...'
-                      : 'Create Ticket'}
-                  </Button>
-                </div>
+              {/* Submit buttons */}
+              <div className='flex items-center justify-end gap-2'>
+                <Button
+                  type='button'
+                  variant='outline'
+                  onClick={handleDiscard}
+                  disabled={isSubmitting}
+                >
+                  <Trash2 className='h-4 w-4 mr-1' />
+                  Discard
+                </Button>
+                <Button
+                  type='submit'
+                  disabled={isSubmitting || isCreating}
+                  onClick={form.handleSubmit(handleSubmit)}
+                >
+                  <Send className='h-4 w-4 mr-1' />
+                  {isSubmitting || isCreating ? 'Creating...' : 'Create Ticket'}
+                </Button>
               </div>
             </div>
           </div>

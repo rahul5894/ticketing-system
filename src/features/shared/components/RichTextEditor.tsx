@@ -36,6 +36,7 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
+  Paperclip,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { HexColorPicker } from 'react-colorful';
@@ -773,6 +774,24 @@ export function RichTextEditor({
             {/* List Formatting Group */}
             <BlockButton format='bulleted-list' icon={List} />
             <BlockButton format='numbered-list' icon={ListOrdered} />
+
+            <Separator orientation='vertical' className='h-6 mx-1' />
+
+            {/* File Attachment */}
+            <Button
+              type='button'
+              variant='ghost'
+              size='sm'
+              className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
+              onClick={() => {
+                // TODO: Implement file attachment functionality
+                console.log('File attachment clicked');
+              }}
+              disabled={disabled}
+              title='Attach File'
+            >
+              <Paperclip className='h-4 w-4' />
+            </Button>
           </div>
         </div>
 
