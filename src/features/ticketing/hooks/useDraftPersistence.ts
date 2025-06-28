@@ -81,7 +81,7 @@ export function useDraftPersistence(form: UseFormReturn<CreateTicketFormData>) {
           description: data.description || '',
           priority: data.priority || 'high',
           department: data.department || 'marketing',
-          assignedTo: data.assignedTo || undefined, // Single string, no filtering needed
+          ...(data.assignedTo && { assignedTo: data.assignedTo }), // Only include if truthy
           cc: (data.cc || []).filter(
             (id): id is string => typeof id === 'string'
           ),

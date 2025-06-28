@@ -471,8 +471,12 @@ export function UserAutocomplete({
       <div className='relative'>
         <div
           className={cn(
-            'flex flex-wrap items-center gap-1 min-h-[2.25rem] w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-[color,box-shadow]',
+            // Match Input component styling exactly (without shadow-xs)
+            'file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input flex h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base transition-[color,box-shadow] outline-none',
             'focus-within:border-ring',
+            'aria-invalid:border-destructive md:text-sm',
+            // Additional styles for multi-select functionality
+            'flex-wrap items-center gap-1 min-h-[2.25rem]',
             error && 'border-destructive focus-within:border-destructive',
             disabled && 'cursor-not-allowed opacity-50 pointer-events-none',
             // For dropdown-only single-select mode with selection, disable the entire container
@@ -488,7 +492,7 @@ export function UserAutocomplete({
               <Badge
                 key={user.id}
                 variant='secondary'
-                className='flex items-center gap-1 pr-1 bg-gray-100 text-gray-800 hover:bg-gray-200'
+                className='flex items-center gap-1 pr-1 bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
               >
                 <User className='h-3 w-3' />
                 <span className='text-xs'>{user.email}</span>
@@ -496,7 +500,7 @@ export function UserAutocomplete({
                   type='button'
                   variant='ghost'
                   size='sm'
-                  className='h-4 w-4 p-0 hover:bg-gray-300 rounded-full'
+                  className='h-4 w-4 p-0 hover:bg-gray-300 dark:hover:bg-gray-500 rounded-full'
                   onClick={(e) => {
                     e.stopPropagation();
                     handleRemoveUser(user.id);

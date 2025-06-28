@@ -15,15 +15,8 @@ const serviceSupabase = createClient(
 
 export async function POST(request: NextRequest) {
   try {
-    const {
-      title,
-      description,
-      priority,
-      department,
-      userId,
-      userEmail,
-      userName,
-    } = await request.json();
+    const { title, description, priority, department, userId } =
+      await request.json();
 
     // Get tenant data
     const { data: tenant, error: tenantError } = await serviceSupabase
@@ -88,4 +81,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

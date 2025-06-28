@@ -1,6 +1,22 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import React, {
+  useState,
+  useMemo,
+  useCallback,
+  useEffect,
+  useRef,
+} from 'react';
+import {
+  createEditor,
+  Editor,
+  Transforms,
+  Text,
+  Element as SlateElement,
+  Range,
+} from 'slate';
+import { Slate, Editable, withReact, useSlate, ReactEditor } from 'slate-react';
+import { withHistory } from 'slate-history';
 import { Button } from '@/features/shared/components/ui/button';
 import {
   Select,
@@ -14,15 +30,57 @@ import {
   Bold,
   Italic,
   Underline,
+  List,
+  ListOrdered,
+  Palette,
+  Quote,
   AlignLeft,
   AlignCenter,
   AlignRight,
-  List,
-  ListOrdered,
-  Paperclip,
-  Smile,
+  Code,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { HexColorPicker } from 'react-colorful';
+import { RenderElementProps, RenderLeafProps } from 'slate-react';
+import { LucideIcon } from 'lucide-react';
+import {
+  CustomEditor,
+  CustomText,
+  SlateValue,
+  createInitialValue,
+  isBlockActive,
+  isMarkActive,
+} from './slate-types';
+
+// Special constant to indicate default theme color should be used
+const DEFAULT_TEXT_COLOR = 'default';
+
+// Minimal CSS for react-colorful
+const colorPickerStyles = `
+  .react-colorful {
+    width: 200px;
+    height: 200px;
+  }
+
+  .react-colorful__saturation {
+    width: 200px;
+    height: 150px;
+    border-radius: 8px 8px 0 0;
+  }
+
+  .react-colorful__hue {
+    height: 24px;
+    border-radius: 0 0 8px 8px;
+  }
+
+  .react-colorful__pointer {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+`;
 
 interface RichTextEditorProps {
   value: string;
@@ -30,8 +88,134 @@ interface RichTextEditorProps {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
-  onAttachmentClick?: () => void;
 }
+
+// Helper functions for Slate operations
+const toggleMark = (
+  editor: CustomEditor,
+  format: keyof Omit<CustomText, 'text'>
+) => {
+  const isActive = isMarkActive(editor, format);
+  if (isActive) {
+    Editor.removeMark(editor, format);
+  } else {
+    Editor.addMark(editor, format, true);
+  }
+};
+
+const toggleBlock = (editor: CustomEditor, format: string) => {
+  const isActive = isBlockActive(editor, format);
+  const isList = ['numbered-list', 'bulleted-list'].includes(format);
+  const isAlignment = ['align-left', 'align-center', 'align-right'].includes(
+    format
+  );
+
+  // Unwrap any existing lists
+  Transforms.unwrapNodes(editor, {
+    match: (n) =>
+      !Editor.isEditor(n) &&
+      SlateElement.isElement(n) &&
+      ['numbered-list', 'bulleted-list'].includes(n.type),
+    split: true,
+  });
+
+  if (isAlignment) {
+    // Handle text alignment by setting CSS styles
+    const alignValue = format.replace('align-', '') as
+      | 'left'
+      | 'center'
+      | 'right';
+    Transforms.setNodes(editor, {
+      style: { textAlign: alignValue === 'left' ? undefined : alignValue },
+    } as Partial<SlateElement>);
+  } else if (isActive) {
+    // If toggling off, convert to paragraph
+    Transforms.setNodes<SlateElement>(editor, { type: 'paragraph' });
+  } else if (isList) {
+    // If creating a list, first convert to list-item
+    Transforms.setNodes<SlateElement>(editor, { type: 'list-item' });
+    // Then wrap in the appropriate list container
+    if (format === 'numbered-list') {
+      Transforms.wrapNodes(editor, { type: 'numbered-list', children: [] });
+    } else if (format === 'bulleted-list') {
+      Transforms.wrapNodes(editor, { type: 'bulleted-list', children: [] });
+    }
+  } else {
+    // For headings, blockquote and other block types
+    if (format === 'heading-one') {
+      Transforms.setNodes<SlateElement>(editor, { type: 'heading-one' });
+    } else if (format === 'heading-two') {
+      Transforms.setNodes<SlateElement>(editor, { type: 'heading-two' });
+    } else if (format === 'block-quote') {
+      Transforms.setNodes<SlateElement>(editor, { type: 'block-quote' });
+    } else if (format === 'code-block') {
+      Transforms.setNodes<SlateElement>(editor, { type: 'code-block' });
+    } else {
+      Transforms.setNodes<SlateElement>(editor, { type: 'paragraph' });
+    }
+  }
+};
+
+// Convert HTML to Slate value (basic implementation)
+const htmlToSlate = (html: string): SlateValue => {
+  if (!html || html.trim() === '') {
+    return createInitialValue();
+  }
+
+  // For now, return a simple paragraph with the HTML as text
+  // This can be enhanced later with proper HTML parsing
+  return [
+    {
+      type: 'paragraph',
+      children: [{ text: html.replace(/<[^>]*>/g, '') }],
+    },
+  ];
+};
+
+// Convert Slate value to HTML (basic implementation)
+const slateToHtml = (value: SlateValue): string => {
+  return value
+    .map((node) => {
+      if (SlateElement.isElement(node)) {
+        const children = node.children
+          .map((child) => {
+            if (Text.isText(child)) {
+              let text = child.text;
+              if (child.bold) text = `<strong>${text}</strong>`;
+              if (child.italic) text = `<em>${text}</em>`;
+              if (child.underline) text = `<u>${text}</u>`;
+              if (child.color && child.color !== DEFAULT_TEXT_COLOR) {
+                text = `<span style="color: ${child.color}">${text}</span>`;
+              }
+              return text;
+            }
+            return '';
+          })
+          .join('');
+
+        switch (node.type) {
+          case 'heading-one':
+            return `<h1>${children}</h1>`;
+          case 'heading-two':
+            return `<h2>${children}</h2>`;
+          case 'block-quote':
+            return `<blockquote>${children}</blockquote>`;
+          case 'code-block':
+            return `<pre><code>${children}</code></pre>`;
+          case 'bulleted-list':
+            return `<ul>${children}</ul>`;
+          case 'numbered-list':
+            return `<ol>${children}</ol>`;
+          case 'list-item':
+            return `<li>${children}</li>`;
+          default:
+            return `<p>${children}</p>`;
+        }
+      }
+      return '';
+    })
+    .join('');
+};
 
 export function RichTextEditor({
   value,
@@ -39,473 +223,479 @@ export function RichTextEditor({
   placeholder = 'Type your message...',
   className,
   disabled = false,
-  onAttachmentClick,
 }: RichTextEditorProps) {
-  const editorRef = useRef<HTMLDivElement>(null);
-  const [activeFormats, setActiveFormats] = useState<Set<string>>(new Set());
+  const editor = useMemo(() => withHistory(withReact(createEditor())), []);
 
-  // Check which formats are currently active
-  const updateActiveFormats = useCallback(() => {
-    if (!editorRef.current) return;
-
-    const formats = new Set<string>();
-
-    // Check for formatting commands
-    if (document.queryCommandState('bold')) formats.add('bold');
-    if (document.queryCommandState('italic')) formats.add('italic');
-    if (document.queryCommandState('underline')) formats.add('underline');
-    if (document.queryCommandState('insertUnorderedList'))
-      formats.add('unorderedList');
-    if (document.queryCommandState('insertOrderedList'))
-      formats.add('orderedList');
-
-    // Check alignment
-    if (document.queryCommandState('justifyLeft')) formats.add('alignLeft');
-    if (document.queryCommandState('justifyCenter')) formats.add('alignCenter');
-    if (document.queryCommandState('justifyRight')) formats.add('alignRight');
-
-    setActiveFormats(formats);
-  }, []);
-
-  // Handle text formatting commands
-  const execCommand = useCallback(
-    (command: string, value?: string) => {
-      if (disabled) return;
-
-      // Ensure editor is focused before executing command
-      editorRef.current?.focus();
-
-      // Execute the command
-      const success = document.execCommand(command, false, value);
-
-      // For list commands, ensure proper formatting
-      if (
-        (command === 'insertUnorderedList' ||
-          command === 'insertOrderedList') &&
-        success
-      ) {
-        // Force a re-render to ensure proper list styling
-        setTimeout(() => {
-          if (editorRef.current) {
-            onChange(editorRef.current.innerHTML);
-          }
-        }, 0);
-      }
-
-      // Update the value after formatting
-      if (editorRef.current) {
-        onChange(editorRef.current.innerHTML);
-      }
-
-      // Update active formats after command execution
-      setTimeout(updateActiveFormats, 0);
-    },
-    [disabled, onChange, updateActiveFormats]
+  // Convert HTML value to Slate value
+  const [slateValue, setSlateValue] = useState<SlateValue>(() =>
+    htmlToSlate(value)
   );
 
-  // Handle input changes
-  const handleInput = useCallback(() => {
-    if (!editorRef.current) return;
+  // Text color state
+  const [currentTextColor, setCurrentTextColor] =
+    useState<string>(DEFAULT_TEXT_COLOR);
+  const [showTextColorPicker, setShowTextColorPicker] = useState(false);
+  const colorPickerRef = useRef<HTMLDivElement>(null);
 
-    const content = editorRef.current.innerHTML;
-    onChange(content);
+  // Text color functions
+  const handleTextColorChange = useCallback(
+    (color: string) => {
+      if (disabled) return;
+      ReactEditor.focus(editor);
 
-    // Update active formats after content change
-    setTimeout(updateActiveFormats, 0);
-  }, [onChange, updateActiveFormats]);
+      // Apply color to selected text if any
+      if (editor.selection && !Range.isCollapsed(editor.selection)) {
+        Editor.addMark(editor, 'color', color);
+      }
 
-  // Handle keyboard events
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    // Basic keyboard handling can be added here if needed
-    console.log('Key pressed:', e.key);
+      // Set the color for future text
+      setCurrentTextColor(color);
+
+      // Apply the mark to the editor for new text
+      Editor.addMark(editor, 'color', color);
+    },
+    [disabled, editor]
+  );
+
+  const resetTextColor = useCallback(() => {
+    if (disabled) return;
+    ReactEditor.focus(editor);
+    Editor.removeMark(editor, 'color');
+    setCurrentTextColor(DEFAULT_TEXT_COLOR);
+    setShowTextColorPicker(false); // Close dropdown after reset
+  }, [disabled, editor]);
+
+  const getComputedThemeColor = useCallback(() => {
+    // Get computed color from CSS for theme support
+    if (typeof window !== 'undefined') {
+      const computedStyle = window.getComputedStyle(document.documentElement);
+      return computedStyle.getPropertyValue('--foreground') || '#000000';
+    }
+    return '#000000';
   }, []);
 
-  // Handle paste events for email formatting
+  const getDisplayColor = useCallback(() => {
+    if (currentTextColor === DEFAULT_TEXT_COLOR) {
+      const computedColor = getComputedThemeColor();
+      // Convert CSS custom property to hex if needed
+      if (computedColor.startsWith('oklch')) {
+        // For now, return a default color for oklch values
+        return '#000000';
+      }
+      return computedColor;
+    }
+    return currentTextColor;
+  }, [currentTextColor, getComputedThemeColor]);
+
+  // Keyboard shortcuts handler
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return;
+
+      switch (event.key) {
+        case 'b': {
+          event.preventDefault();
+          toggleMark(editor, 'bold');
+          break;
+        }
+        case 'i': {
+          event.preventDefault();
+          toggleMark(editor, 'italic');
+          break;
+        }
+        case 'u': {
+          event.preventDefault();
+          toggleMark(editor, 'underline');
+          break;
+        }
+        default:
+          break;
+      }
+    },
+    [editor]
+  );
+
+  // Paste handler for email formatting
   const handlePaste = useCallback(
-    (e: React.ClipboardEvent) => {
-      const pastedText = e.clipboardData.getData('text/plain');
+    (event: React.ClipboardEvent) => {
+      const pastedText = event.clipboardData.getData('text/plain');
 
       // Check if pasted text is an email address
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (emailRegex.test(pastedText.trim())) {
-        e.preventDefault();
+        event.preventDefault();
 
-        // Insert the email as a clickable link
-        const emailLink = `<a href="mailto:${pastedText.trim()}" class="text-blue-600 hover:text-blue-800 underline">${pastedText.trim()}</a>`;
-        execCommand('insertHTML', emailLink);
+        // Insert the email as plain text for now
+        // In a more advanced implementation, this could be a link
+        editor.insertText(pastedText.trim());
       }
       // For non-email text, let the default paste behavior handle it
     },
-    [execCommand]
+    [editor]
   );
 
-  // Handle emoji picker
-  const handleEmojiPicker = useCallback(() => {
-    if (disabled) return;
-
-    // Try to use native emoji picker if available
-    if ('showPicker' in HTMLInputElement.prototype) {
-      // Create a temporary input element to trigger the emoji picker
-      const tempInput = document.createElement('input');
-      tempInput.type = 'text';
-      tempInput.style.position = 'absolute';
-      tempInput.style.left = '-9999px';
-      tempInput.style.opacity = '0';
-
-      document.body.appendChild(tempInput);
-      tempInput.focus();
-
-      try {
-        // Try to show the picker
-        (
-          tempInput as HTMLInputElement & { showPicker?: () => void }
-        ).showPicker?.();
-
-        // Listen for input to capture emoji
-        const handleEmojiInput = (e: Event) => {
-          const target = e.target as HTMLInputElement;
-          if (target.value) {
-            editorRef.current?.focus();
-            execCommand('insertText', target.value);
-          }
-          document.body.removeChild(tempInput);
-        };
-
-        tempInput.addEventListener('input', handleEmojiInput, { once: true });
-
-        // Cleanup if user doesn't select anything
-        setTimeout(() => {
-          if (document.body.contains(tempInput)) {
-            document.body.removeChild(tempInput);
-          }
-        }, 5000);
-      } catch (err) {
-        // Fallback if showPicker fails
-        console.warn('Native emoji picker failed:', err);
-        document.body.removeChild(tempInput);
-        showEmojiPickerFallback();
-      }
-    } else {
-      // Fallback for browsers that don't support showPicker
-      showEmojiPickerFallback();
-    }
-  }, [disabled, execCommand]);
-
-  // Fallback emoji picker instructions
-  const showEmojiPickerFallback = useCallback(() => {
-    const userAgent = navigator.userAgent.toLowerCase();
-    const isWindows = userAgent.includes('windows');
-    const isMac = userAgent.includes('mac');
-
-    let shortcut = '';
-    if (isWindows) {
-      shortcut = 'Windows key + . (period) or Windows key + ;';
-    } else if (isMac) {
-      shortcut = 'Cmd + Ctrl + Space';
-    } else {
-      shortcut = "your system's emoji shortcut";
-    }
-
-    alert(`To insert emojis, use ${shortcut}`);
-  }, []);
-
-  // Handle file upload
-  const handleFileUpload = useCallback(() => {
-    if (disabled) return;
-
-    try {
-      // Create a hidden file input
-      const fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.multiple = true;
-      fileInput.accept = 'image/*,application/pdf,.doc,.docx,.txt';
-      fileInput.style.display = 'none';
-
-      // Handle file selection
-      const handleFileChange = (e: Event) => {
-        try {
-          const target = e.target as HTMLInputElement;
-          const files = target.files;
-
-          if (files && files.length > 0) {
-            // Validate file sizes (max 10MB per file)
-            const maxSize = 10 * 1024 * 1024; // 10MB
-            const oversizedFiles = Array.from(files).filter(
-              (file) => file.size > maxSize
-            );
-
-            if (oversizedFiles.length > 0) {
-              alert(
-                `The following files are too large (max 10MB): ${oversizedFiles
-                  .map((f) => f.name)
-                  .join(', ')}`
-              );
-              return;
-            }
-
-            // Call the onAttachmentClick callback if provided
-            if (onAttachmentClick) {
-              onAttachmentClick();
-            } else {
-              // Default behavior: show file names in the editor
-              const fileNames = Array.from(files)
-                .map((file) => file.name)
-                .join(', ');
-              editorRef.current?.focus();
-              execCommand('insertText', `[Attached files: ${fileNames}]`);
-            }
-          }
-        } catch (error) {
-          console.error('Error handling file selection:', error);
-          alert(
-            'An error occurred while processing the selected files. Please try again.'
-          );
-        } finally {
-          // Clean up
-          if (document.body.contains(fileInput)) {
-            document.body.removeChild(fileInput);
-          }
-        }
-      };
-
-      // Handle errors during file input creation
-      const handleError = () => {
-        if (document.body.contains(fileInput)) {
-          document.body.removeChild(fileInput);
-        }
-        alert('Unable to open file picker. Please try again.');
-      };
-
-      fileInput.addEventListener('change', handleFileChange);
-      fileInput.addEventListener('error', handleError);
-      document.body.appendChild(fileInput);
-
-      // Trigger the file picker
-      fileInput.click();
-    } catch (error) {
-      console.error('Error creating file picker:', error);
-      alert('Unable to open file picker. Please try again.');
-    }
-  }, [disabled, onAttachmentClick, execCommand]);
-
-  // Update editor content when value changes externally
+  // Update Slate value when external value changes
   useEffect(() => {
-    if (editorRef.current && editorRef.current.innerHTML !== value) {
-      editorRef.current.innerHTML = value;
-    }
+    const newSlateValue = htmlToSlate(value);
+    setSlateValue(newSlateValue);
   }, [value]);
 
-  // Add selection change listener to update active formats
+  // Apply current text color to new text
   useEffect(() => {
-    const handleSelectionChange = () => {
-      if (document.activeElement === editorRef.current) {
-        updateActiveFormats();
+    if (currentTextColor !== DEFAULT_TEXT_COLOR) {
+      Editor.addMark(editor, 'color', currentTextColor);
+    } else {
+      Editor.removeMark(editor, 'color');
+    }
+  }, [editor, currentTextColor]);
+
+  // Click outside to close color picker
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        colorPickerRef.current &&
+        !colorPickerRef.current.contains(event.target as Node)
+      ) {
+        setShowTextColorPicker(false);
       }
     };
 
-    document.addEventListener('selectionchange', handleSelectionChange);
-    return () =>
-      document.removeEventListener('selectionchange', handleSelectionChange);
-  }, [updateActiveFormats]);
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowTextColorPicker(false);
+      }
+    };
+
+    if (showTextColorPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleEscapeKey);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscapeKey);
+    };
+  }, [showTextColorPicker]);
+
+  // Handle Slate value changes
+  const handleSlateChange = useCallback(
+    (newValue: SlateValue) => {
+      setSlateValue(newValue);
+      const htmlValue = slateToHtml(newValue);
+      onChange(htmlValue);
+    },
+    [onChange]
+  );
+
+  // Render element function
+  const renderElement = useCallback((props: RenderElementProps) => {
+    const { attributes, children, element } = props;
+    const style =
+      (element as SlateElement & { style?: React.CSSProperties }).style || {};
+
+    switch (element.type) {
+      case 'heading-one':
+        return (
+          <h1 {...attributes} style={style}>
+            {children}
+          </h1>
+        );
+      case 'heading-two':
+        return (
+          <h2 {...attributes} style={style}>
+            {children}
+          </h2>
+        );
+      case 'block-quote':
+        return (
+          <blockquote
+            {...attributes}
+            style={style}
+            className='border-l-4 border-border pl-4 italic text-muted-foreground my-2'
+          >
+            {children}
+          </blockquote>
+        );
+      case 'code-block':
+        return (
+          <pre
+            {...attributes}
+            style={style}
+            className='bg-muted p-3 rounded-md font-mono text-sm overflow-x-auto my-2'
+          >
+            <code>{children}</code>
+          </pre>
+        );
+      case 'bulleted-list':
+        return (
+          <ul {...attributes} style={style}>
+            {children}
+          </ul>
+        );
+      case 'numbered-list':
+        return (
+          <ol {...attributes} style={style}>
+            {children}
+          </ol>
+        );
+      case 'list-item':
+        return (
+          <li {...attributes} style={style}>
+            {children}
+          </li>
+        );
+      default:
+        return (
+          <p {...attributes} style={style}>
+            {children}
+          </p>
+        );
+    }
+  }, []);
+
+  // Render leaf function for text formatting
+  const renderLeaf = useCallback((props: RenderLeafProps) => {
+    const { attributes, children, leaf } = props;
+    let element = children;
+
+    if (leaf.bold) {
+      element = <strong>{element}</strong>;
+    }
+
+    if (leaf.italic) {
+      element = <em>{element}</em>;
+    }
+
+    if (leaf.underline) {
+      element = <u>{element}</u>;
+    }
+
+    if (leaf.color && leaf.color !== DEFAULT_TEXT_COLOR) {
+      element = <span style={{ color: leaf.color }}>{element}</span>;
+    }
+
+    return <span {...attributes}>{element}</span>;
+  }, []);
+
+  // Toolbar button components
+  const MarkButton = ({
+    format,
+    icon: Icon,
+  }: {
+    format: keyof Omit<CustomText, 'text'>;
+    icon: LucideIcon;
+  }) => {
+    const editor = useSlate();
+    const isActive = isMarkActive(editor, format);
+
+    return (
+      <Button
+        type='button'
+        variant='ghost'
+        size='sm'
+        className={cn(
+          'h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700',
+          isActive && 'bg-gray-200 dark:bg-gray-600'
+        )}
+        onClick={() => toggleMark(editor, format)}
+        disabled={disabled}
+      >
+        <Icon className='h-4 w-4' />
+      </Button>
+    );
+  };
+
+  const BlockButton = ({
+    format,
+    icon: Icon,
+  }: {
+    format: string;
+    icon: LucideIcon;
+  }) => {
+    const editor = useSlate();
+    const isActive = isBlockActive(editor, format);
+
+    return (
+      <Button
+        type='button'
+        variant='ghost'
+        size='sm'
+        className={cn(
+          'h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700',
+          isActive && 'bg-gray-200 dark:bg-gray-600'
+        )}
+        onClick={() => toggleBlock(editor, format)}
+        disabled={disabled}
+      >
+        <Icon className='h-4 w-4' />
+      </Button>
+    );
+  };
 
   return (
     <div className={cn('relative', className)}>
-      {/* Toolbar */}
-      <div className='space-y-2 mb-4'>
-        <div className='flex items-center gap-1'>
-          <Select
-            defaultValue='paragraph'
-            onValueChange={(value) => {
-              if (value === 'heading1') {
-                execCommand('formatBlock', '<h1>');
-              } else if (value === 'heading2') {
-                execCommand('formatBlock', '<h2>');
-              } else {
-                execCommand('formatBlock', '<p>');
-              }
-            }}
-          >
-            <SelectTrigger className='w-32 h-8'>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value='paragraph'>
-                <span className='text-sm'>Paragraph</span>
-              </SelectItem>
-              <SelectItem value='heading1'>
-                <span className='text-lg font-bold'>Heading 1</span>
-              </SelectItem>
-              <SelectItem value='heading2'>
-                <span className='text-base font-semibold'>Heading 2</span>
-              </SelectItem>
-            </SelectContent>
-          </Select>
+      <Slate
+        editor={editor}
+        initialValue={slateValue}
+        onChange={handleSlateChange}
+      >
+        {/* Toolbar */}
+        <div className='space-y-2 mb-4'>
+          <div className='flex items-center gap-1'>
+            <Select
+              defaultValue='paragraph'
+              onValueChange={(value) => {
+                if (disabled) return;
+                ReactEditor.focus(editor);
 
-          <Separator orientation='vertical' className='h-6 mx-1' />
+                if (value === 'heading1') {
+                  toggleBlock(editor, 'heading-one');
+                } else if (value === 'heading2') {
+                  toggleBlock(editor, 'heading-two');
+                } else if (value === 'blockquote') {
+                  toggleBlock(editor, 'block-quote');
+                } else if (value === 'codeblock') {
+                  toggleBlock(editor, 'code-block');
+                } else {
+                  toggleBlock(editor, 'paragraph');
+                }
+              }}
+            >
+              <SelectTrigger className='w-32 h-8'>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='paragraph'>
+                  <span className='text-sm'>Paragraph</span>
+                </SelectItem>
+                <SelectItem value='heading1'>
+                  <span className='text-lg font-bold'>Heading 1</span>
+                </SelectItem>
+                <SelectItem value='heading2'>
+                  <span className='text-base font-semibold'>Heading 2</span>
+                </SelectItem>
+                <SelectItem value='blockquote'>
+                  <span className='text-sm italic text-gray-600'>Quote</span>
+                </SelectItem>
+                <SelectItem value='codeblock'>
+                  <span className='text-sm font-mono text-gray-600'>Code</span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
 
-          <Button
-            type='button'
-            variant='ghost'
-            size='sm'
-            className={cn(
-              'h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700',
-              activeFormats.has('bold') && 'bg-gray-200 dark:bg-gray-600'
-            )}
-            onClick={() => execCommand('bold')}
-            disabled={disabled}
-          >
-            <Bold className='h-4 w-4' />
-          </Button>
-          <Button
-            type='button'
-            variant='ghost'
-            size='sm'
-            className={cn(
-              'h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700',
-              activeFormats.has('italic') && 'bg-gray-200 dark:bg-gray-600'
-            )}
-            onClick={() => execCommand('italic')}
-            disabled={disabled}
-          >
-            <Italic className='h-4 w-4' />
-          </Button>
-          <Button
-            type='button'
-            variant='ghost'
-            size='sm'
-            className={cn(
-              'h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700',
-              activeFormats.has('underline') && 'bg-gray-200 dark:bg-gray-600'
-            )}
-            onClick={() => execCommand('underline')}
-            disabled={disabled}
-          >
-            <Underline className='h-4 w-4' />
-          </Button>
+            <Separator orientation='vertical' className='h-6 mx-1' />
 
-          <Separator orientation='vertical' className='h-6 mx-1' />
+            <MarkButton format='bold' icon={Bold} />
+            <MarkButton format='italic' icon={Italic} />
+            <MarkButton format='underline' icon={Underline} />
 
-          <Button
-            type='button'
-            variant='ghost'
-            size='sm'
-            className={cn(
-              'h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700',
-              activeFormats.has('alignLeft') && 'bg-gray-200 dark:bg-gray-600'
-            )}
-            onClick={() => execCommand('justifyLeft')}
-            disabled={disabled}
-          >
-            <AlignLeft className='h-4 w-4' />
-          </Button>
-          <Button
-            type='button'
-            variant='ghost'
-            size='sm'
-            className={cn(
-              'h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700',
-              activeFormats.has('alignCenter') && 'bg-gray-200 dark:bg-gray-600'
-            )}
-            onClick={() => execCommand('justifyCenter')}
-            disabled={disabled}
-          >
-            <AlignCenter className='h-4 w-4' />
-          </Button>
-          <Button
-            type='button'
-            variant='ghost'
-            size='sm'
-            className={cn(
-              'h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700',
-              activeFormats.has('alignRight') && 'bg-gray-200 dark:bg-gray-600'
-            )}
-            onClick={() => execCommand('justifyRight')}
-            disabled={disabled}
-          >
-            <AlignRight className='h-4 w-4' />
-          </Button>
+            {/* Text Color Picker */}
+            <div className='relative color-picker-container'>
+              <Button
+                type='button'
+                variant='ghost'
+                size='sm'
+                className={cn(
+                  'h-8 w-8 p-0 relative transition-all duration-200',
+                  showTextColorPicker
+                    ? 'bg-gray-200 dark:bg-gray-600'
+                    : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                )}
+                onClick={() => setShowTextColorPicker(!showTextColorPicker)}
+                disabled={disabled}
+                title='Text Color'
+              >
+                <Palette className='h-4 w-4' />
+                {/* Only show bottom border indicator for non-default colors */}
+                {currentTextColor !== DEFAULT_TEXT_COLOR && (
+                  <div
+                    className='absolute bottom-0 left-0 right-0 h-1 rounded-b'
+                    style={{ backgroundColor: currentTextColor }}
+                  />
+                )}
+              </Button>
 
-          <Separator orientation='vertical' className='h-6 mx-1' />
+              {/* React-colorful color picker */}
+              {showTextColorPicker && (
+                <div
+                  ref={colorPickerRef}
+                  className='absolute top-10 left-0 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-3'
+                >
+                  <div className='text-xs font-medium text-gray-700 dark:text-gray-300 mb-2'>
+                    Text Color
+                  </div>
+                  <style>{colorPickerStyles}</style>
+                  <HexColorPicker
+                    color={getDisplayColor()}
+                    onChange={handleTextColorChange}
+                  />
+                  <div className='mt-2 flex items-center gap-2'>
+                    <button
+                      type='button'
+                      className='px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors'
+                      onClick={resetTextColor}
+                    >
+                      Reset
+                    </button>
+                    <div className='text-xs text-gray-500 dark:text-gray-400'>
+                      {currentTextColor === DEFAULT_TEXT_COLOR
+                        ? 'Default'
+                        : currentTextColor.toUpperCase()}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
-          <Button
-            type='button'
-            variant='ghost'
-            size='sm'
-            className={cn(
-              'h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700',
-              activeFormats.has('unorderedList') &&
-                'bg-gray-200 dark:bg-gray-600'
-            )}
-            onClick={() => execCommand('insertUnorderedList')}
-            disabled={disabled}
-          >
-            <List className='h-4 w-4' />
-          </Button>
-          <Button
-            type='button'
-            variant='ghost'
-            size='sm'
-            className={cn(
-              'h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700',
-              activeFormats.has('orderedList') && 'bg-gray-200 dark:bg-gray-600'
-            )}
-            onClick={() => execCommand('insertOrderedList')}
-            disabled={disabled}
-          >
-            <ListOrdered className='h-4 w-4' />
-          </Button>
+            <Separator orientation='vertical' className='h-6 mx-1' />
+
+            <BlockButton format='bulleted-list' icon={List} />
+            <BlockButton format='numbered-list' icon={ListOrdered} />
+            <BlockButton format='block-quote' icon={Quote} />
+            <BlockButton format='code-block' icon={Code} />
+
+            <Separator orientation='vertical' className='h-6 mx-1' />
+
+            {/* Text Alignment Buttons */}
+            <BlockButton format='align-left' icon={AlignLeft} />
+            <BlockButton format='align-center' icon={AlignCenter} />
+            <BlockButton format='align-right' icon={AlignRight} />
+          </div>
         </div>
-      </div>
 
-      {/* Editor */}
-      <div className='relative'>
-        <div
-          ref={editorRef}
-          contentEditable={!disabled}
-          onInput={handleInput}
-          onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
-          className={cn(
-            'min-h-32 p-3 border rounded-md bg-background text-foreground',
-            'prose prose-sm max-w-none no-focus-ring',
-            disabled && 'opacity-50 cursor-not-allowed',
-            'empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground',
-            // Ensure proper list styling
-            '[&_ul]:list-disc [&_ul]:ml-6 [&_ol]:list-decimal [&_ol]:ml-6',
-            '[&_li]:mb-1',
-            // Ensure proper heading styling
-            '[&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-4 [&_h1]:mt-2',
-            '[&_h2]:text-xl [&_h2]:font-semibold [&_h2]:mb-3 [&_h2]:mt-2',
-            '[&_p]:mb-2'
-          )}
-          data-placeholder={placeholder}
-          suppressContentEditableWarning
-        />
-      </div>
-
-      {/* Action Buttons */}
-      <div className='flex items-center gap-2 mt-3'>
-        <Button
-          type='button'
-          variant='ghost'
-          size='sm'
-          className='hover:bg-gray-100 dark:hover:bg-gray-700'
-          onClick={handleFileUpload}
-          disabled={disabled}
-        >
-          <Paperclip className='h-4 w-4' />
-        </Button>
-        <Button
-          type='button'
-          variant='ghost'
-          size='sm'
-          className='hover:bg-gray-100 dark:hover:bg-gray-700'
-          onClick={handleEmojiPicker}
-          disabled={disabled}
-        >
-          <Smile className='h-4 w-4' />
-        </Button>
-      </div>
+        {/* Editor */}
+        <div className='relative'>
+          <Editable
+            renderElement={renderElement}
+            renderLeaf={renderLeaf}
+            placeholder={placeholder}
+            disabled={disabled}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            className={cn(
+              // Match Input component styling exactly
+              'file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input block w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none md:text-sm',
+              'focus-visible:border-ring',
+              'aria-invalid:border-destructive',
+              // Additional styles for rich text editor with proper text color and fixed height
+              'h-32 max-h-32 overflow-y-auto overflow-x-hidden prose prose-sm max-w-none no-focus-ring text-foreground',
+              disabled && 'opacity-50 cursor-not-allowed pointer-events-none',
+              // Override prose text colors to use foreground color for dark mode support
+              '[&_p]:text-foreground [&_div]:text-foreground',
+              '[&_strong]:text-foreground [&_em]:text-foreground [&_u]:text-foreground',
+              '[&_h1]:text-foreground [&_h2]:text-foreground [&_h3]:text-foreground',
+              '[&_li]:text-foreground [&_ul]:text-foreground [&_ol]:text-foreground',
+              // Ensure proper list styling with better alignment
+              '[&_ul]:list-disc [&_ul]:pl-6 [&_ul]:ml-0 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:ml-0',
+              '[&_li]:mb-1 [&_li]:pl-1',
+              // Ensure proper heading styling
+              '[&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-4 [&_h1]:mt-2',
+              '[&_h2]:text-xl [&_h2]:font-semibold [&_h2]:mb-3 [&_h2]:mt-2',
+              '[&_p]:mb-2'
+            )}
+          />
+        </div>
+      </Slate>
     </div>
   );
 }

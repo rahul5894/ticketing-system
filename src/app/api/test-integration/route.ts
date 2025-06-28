@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 // Create service role client for admin operations
@@ -34,10 +34,12 @@ export async function GET() {
     // Test tickets fetch with tenant isolation
     const { data: tickets, error: ticketsError } = await serviceSupabase
       .from('tickets')
-      .select(`
+      .select(
+        `
         *,
         created_by:users!tickets_created_by_fkey(id, email, first_name, last_name)
-      `)
+      `
+      )
       .eq('tenant_id', tenantData.id)
       .order('created_at', { ascending: false })
       .limit(10);
@@ -54,7 +56,7 @@ export async function GET() {
     });
   } catch (error) {
     console.error('Database connection test failed:', error);
-    
+
     return NextResponse.json(
       {
         connectionStatus: 'error',
