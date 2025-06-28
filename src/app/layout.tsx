@@ -4,6 +4,7 @@ import { ClerkProvider } from '@clerk/nextjs';
 import { ThemeProvider } from '@/features/shared/components/ThemeProvider';
 import { SessionValidator } from '@/features/shared/components/SessionValidator';
 import { SupabaseProvider } from '@/features/shared/components/SupabaseProvider';
+import { Toaster } from '@/features/shared/components/ui/sonner';
 import './globals.css';
 
 const geistSans = Geist({
@@ -36,6 +37,12 @@ export default function RootLayout({
           <ThemeProvider defaultTheme='light' storageKey='ticketing-theme'>
             <SupabaseProvider>
               <SessionValidator>{children}</SessionValidator>
+              <Toaster
+                position='top-right'
+                expand={true}
+                richColors={true}
+                closeButton={true}
+              />
             </SupabaseProvider>
           </ThemeProvider>
         </body>

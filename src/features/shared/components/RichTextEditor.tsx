@@ -87,6 +87,7 @@ interface RichTextEditorProps {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  onAttachClick?: () => void;
 }
 
 // Helper functions for Slate operations
@@ -207,6 +208,7 @@ export function RichTextEditor({
   placeholder = 'Type your message...',
   className,
   disabled = false,
+  onAttachClick,
 }: RichTextEditorProps) {
   const editor = useMemo(() => withReact(createEditor()), []);
 
@@ -646,7 +648,7 @@ export function RichTextEditor({
   };
 
   return (
-    <div className={cn('relative', className)}>
+    <div className={cn('relative', className)} data-rich-text-editor='true'>
       <Slate
         editor={editor}
         initialValue={slateValue}
@@ -784,8 +786,7 @@ export function RichTextEditor({
               size='sm'
               className='h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700'
               onClick={() => {
-                // TODO: Implement file attachment functionality
-                console.log('File attachment clicked');
+                onAttachClick?.();
               }}
               disabled={disabled}
               title='Attach File'

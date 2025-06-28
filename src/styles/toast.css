@@ -1,0 +1,176 @@
+/* Base toast styling - minimal to preserve default Sonner behavior */
+.sonner-toast {
+  border-radius: 8px;
+  padding: 14px 18px 14px 16px;
+  border-width: 1px;
+  border-style: solid;
+}
+
+/* Hide close button */
+.sonner-toast-close-button {
+  display: none !important;
+}
+
+/* Hide close button completely */
+.sonner-toast-close-button,
+.sonner-toast [data-close-button],
+.sonner-toast button[data-close-button],
+.sonner-toast [data-dismiss],
+.sonner-toast .sonner-close,
+[data-sonner-toast] [data-close-button],
+[data-sonner-toast] button[aria-label='Close toast'],
+[data-sonner-toast] button[data-dismiss] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Success toast */
+.custom-toast-success,
+.sonner-toast[data-type='success'] {
+  background: #e6f4f1 !important;
+  border-color: #99c0b8 !important;
+  color: #2a6b62 !important;
+}
+
+.custom-toast-success [data-icon],
+.sonner-toast[data-type='success'] [data-icon] {
+  color: #2a6b62 !important;
+}
+
+.custom-toast-success [data-description],
+.sonner-toast[data-type='success'] [data-description] {
+  color: #2a6b62 !important;
+}
+
+.dark .custom-toast-success,
+.dark .sonner-toast[data-type='success'] {
+  background: #0c3b30 !important;
+  border-color: #1f6655 !important;
+  color: #7ab3ab !important;
+}
+
+.dark .custom-toast-success [data-icon],
+.dark .sonner-toast[data-type='success'] [data-icon] {
+  color: #7ab3ab !important;
+}
+
+.dark .custom-toast-success [data-description],
+.dark .sonner-toast[data-type='success'] [data-description] {
+  color: #70aaa2 !important;
+}
+
+/* Error toast */
+.custom-toast-error,
+.sonner-toast[data-type='error'] {
+  background: #f5e9ed !important;
+  border-color: #d8b4c0 !important;
+  color: #7a263e !important;
+}
+
+.custom-toast-error [data-icon],
+.sonner-toast[data-type='error'] [data-icon] {
+  color: #7a263e !important;
+}
+
+.custom-toast-error [data-description],
+.sonner-toast[data-type='error'] [data-description] {
+  color: #7a263e !important;
+}
+
+.dark .custom-toast-error,
+.dark .sonner-toast[data-type='error'] {
+  background: #5f2837 !important;
+  border-color: #8f4d5d !important;
+  color: #dabac3 !important;
+}
+
+.dark .custom-toast-error [data-icon],
+.dark .sonner-toast[data-type='error'] [data-icon] {
+  color: #dabac3 !important;
+}
+
+.dark .custom-toast-error [data-description],
+.dark .sonner-toast[data-type='error'] [data-description] {
+  color: #dabac3 !important;
+}
+
+/* Loading toast */
+.custom-toast-loading,
+.sonner-toast[data-type='loading'] {
+  background: #fcfcfc !important;
+  border-color: #cfcfcf !important;
+  color: oklch(0.145 0 0) !important;
+}
+
+.custom-toast-loading [data-icon],
+.sonner-toast[data-type='loading'] [data-icon] {
+  color: oklch(0.145 0 0) !important;
+}
+
+.dark .custom-toast-loading,
+.dark .sonner-toast[data-type='loading'] {
+  background: #141414 !important;
+  border-color: #3d3d3d !important;
+  color: #cbd2df !important;
+}
+
+.dark .custom-toast-loading [data-icon],
+.dark .sonner-toast[data-type='loading'] [data-icon] {
+  color: #cbd2df !important;
+}
+
+.dark .custom-toast-loading [data-description],
+.dark .sonner-toast[data-type='loading'] [data-description] {
+  color: #b0b8c9 !important;
+}
+
+/* Info toast */
+.custom-toast-info,
+.sonner-toast:not([data-type='success']):not([data-type='error']):not(
+    [data-type='loading']
+  ) {
+  background: #fcfcfc !important;
+  border-color: #cfcfcf !important;
+  color: oklch(0.145 0 0) !important;
+}
+
+.custom-toast-info [data-description],
+.sonner-toast:not([data-type='success']):not([data-type='error']):not(
+    [data-type='loading']
+  ) {
+  color: oklch(0.145 0 0) !important;
+}
+
+.dark .custom-toast-info,
+.dark
+  .sonner-toast:not([data-type='success']):not([data-type='error']):not(
+    [data-type='loading']
+  ) {
+  background: #141414 !important;
+  border-color: #3d3d3d !important;
+  color: #cbd2df !important;
+}
+
+.dark .custom-toast-info [data-description],
+.dark
+  .sonner-toast:not([data-type='success']):not([data-type='error']):not(
+    [data-type='loading']
+  ) {
+  color: #cbd2df !important;
+}
+
+/* Toast title and description */
+.sonner-toast-title {
+  font-weight: 600 !important;
+  font-size: 0.95rem !important;
+  margin-bottom: 2px !important;
+}
+
+.sonner-toast-description {
+  font-size: 0.85rem !important;
+  opacity: 0.9 !important;
+  line-height: 1.4 !important;
+}
+

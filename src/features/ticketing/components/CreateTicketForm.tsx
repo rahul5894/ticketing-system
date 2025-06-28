@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -23,6 +23,10 @@ import {
 } from '@/features/shared/components/ui/form';
 import { UserAutocomplete } from '@/features/shared/components/UserAutocomplete';
 import { RichTextEditor } from '@/features/shared/components/RichTextEditor';
+import {
+  FileUpload,
+  UploadedFile,
+} from '@/features/shared/components/FileUpload';
 import { cn } from '@/lib/utils';
 import { Send, Trash2 } from 'lucide-react';
 import { useDraftPersistence } from '../hooks/useDraftPersistence';
@@ -72,9 +76,10 @@ export function CreateTicketForm({
   isSubmitting = false,
 }: CreateTicketFormProps) {
   // State
-  const [attachments] = useState<File[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const { user } = useUser();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form setup
   const form = useForm<CreateTicketFormData>({
@@ -93,6 +98,11 @@ export function CreateTicketForm({
   // Draft persistence
   const { clearDraft } = useDraftPersistence(form);
 
+  // File upload trigger function
+  const handleAttachClick = () => {
+    fileInputRef.current?.click();
+  };
+
   // Handlers
   const handleSubmit = async (data: CreateTicketFormData) => {
     if (!user) {
@@ -108,6 +118,7 @@ export function CreateTicketForm({
 
       // If legacy onSubmit is provided, use it (for backward compatibility)
       if (onSubmit) {
+        const attachments = uploadedFiles.map((f) => f.file);
         onSubmit({ ...data, attachments });
         return;
       }
@@ -151,6 +162,7 @@ export function CreateTicketForm({
   const handleDiscard = () => {
     // Clear draft and reset form
     clearDraft();
+    setUploadedFiles([]);
     form.reset({
       title: '',
       description: '',
@@ -372,9 +384,18 @@ export function CreateTicketForm({
                       onChange={field.onChange}
                       placeholder='Describe the issue in detail...'
                       disabled={isSubmitting}
+                      onAttachClick={handleAttachClick}
                     />
                   </FormItem>
                 )}
+              />
+
+              {/* File Upload */}
+              <FileUpload
+                files={uploadedFiles}
+                onFilesChange={setUploadedFiles}
+                disabled={isSubmitting}
+                fileInputRef={fileInputRef}
               />
 
               {/* Submit buttons */}

@@ -44,7 +44,7 @@
       <Action>Employ particularly deep/thorough `PrimedCognition` to decompose this invocation's input (usually _a_ `Mission`) into _a_ granular and crystal-clear `Workload`, synthesizing sequentially ordered (based on dependencies) and hierarchically designated `Phase`s and `Task`s per `SMART`.</Action>
       <OutputFormat>
       ```markdown
-      ### Phase {phase_num}: {phase_name}\n  #### {phase_num}.{task_num}. {task_name}\n---\n
+      ### Phase {phase_num}: {phase_name}\n  #### {phase_num}.{task_num}. {task_name}\n(...)
       ```
       </OutputFormat>
     </Protocol>
