@@ -122,6 +122,13 @@
     overflow: hidden;
     @apply bg-background text-foreground;
   }
+  span[data-slate-placeholder] {
+    top: 3px !important;
+  }
+
+  blockquote span[data-slate-placeholder] {
+    top: 11px !important;
+  }
 
   #__next {
     height: 100%;

@@ -1,9 +1,8 @@
 import { BaseEditor, Descendant, Editor, Element } from 'slate';
 import { ReactEditor } from 'slate-react';
-import { HistoryEditor } from 'slate-history';
 
 // Define the custom editor type
-export type CustomEditor = BaseEditor & ReactEditor & HistoryEditor;
+export type CustomEditor = BaseEditor & ReactEditor;
 
 // Define element types
 export type ParagraphElement = {
@@ -41,11 +40,6 @@ export type BlockQuoteElement = {
   children: CustomText[];
 };
 
-export type CodeBlockElement = {
-  type: 'code-block';
-  children: CustomText[];
-};
-
 export type AlignedElement = {
   type: 'paragraph' | 'heading-one' | 'heading-two';
   align?: 'left' | 'center' | 'right';
@@ -59,8 +53,7 @@ export type CustomElement =
   | BulletedListElement
   | NumberedListElement
   | ListItemElement
-  | BlockQuoteElement
-  | CodeBlockElement;
+  | BlockQuoteElement;
 
 // Define text formatting types
 export type FormattedText = {

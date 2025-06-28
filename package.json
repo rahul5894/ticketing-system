@@ -33,7 +33,6 @@
     "react-dom": "^19.1.0",
     "react-hook-form": "^7.59.0",
     "slate": "^0.117.2",
-    "slate-history": "^0.113.1",
     "slate-react": "^0.117.3",
     "tailwind-merge": "^3.3.1",
     "zod": "^3.25.67",

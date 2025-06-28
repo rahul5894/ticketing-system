@@ -15,8 +15,7 @@ import {
   Element as SlateElement,
   Range,
 } from 'slate';
-import { Slate, Editable, withReact, useSlate, ReactEditor } from 'slate-react';
-import { withHistory } from 'slate-history';
+import { Slate, Editable, withReact, ReactEditor } from 'slate-react';
 import { Button } from '@/features/shared/components/ui/button';
 import {
   Select,
@@ -37,7 +36,6 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
-  Code,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { HexColorPicker } from 'react-colorful';
@@ -91,17 +89,6 @@ interface RichTextEditorProps {
 }
 
 // Helper functions for Slate operations
-const toggleMark = (
-  editor: CustomEditor,
-  format: keyof Omit<CustomText, 'text'>
-) => {
-  const isActive = isMarkActive(editor, format);
-  if (isActive) {
-    Editor.removeMark(editor, format);
-  } else {
-    Editor.addMark(editor, format, true);
-  }
-};
 
 const toggleBlock = (editor: CustomEditor, format: string) => {
   const isActive = isBlockActive(editor, format);
@@ -148,8 +135,6 @@ const toggleBlock = (editor: CustomEditor, format: string) => {
       Transforms.setNodes<SlateElement>(editor, { type: 'heading-two' });
     } else if (format === 'block-quote') {
       Transforms.setNodes<SlateElement>(editor, { type: 'block-quote' });
-    } else if (format === 'code-block') {
-      Transforms.setNodes<SlateElement>(editor, { type: 'code-block' });
     } else {
       Transforms.setNodes<SlateElement>(editor, { type: 'paragraph' });
     }
@@ -200,8 +185,6 @@ const slateToHtml = (value: SlateValue): string => {
             return `<h2>${children}</h2>`;
           case 'block-quote':
             return `<blockquote>${children}</blockquote>`;
-          case 'code-block':
-            return `<pre><code>${children}</code></pre>`;
           case 'bulleted-list':
             return `<ul>${children}</ul>`;
           case 'numbered-list':
@@ -224,7 +207,7 @@ export function RichTextEditor({
   className,
   disabled = false,
 }: RichTextEditorProps) {
-  const editor = useMemo(() => withHistory(withReact(createEditor())), []);
+  const editor = useMemo(() => withReact(createEditor()), []);
 
   // Convert HTML value to Slate value
   const [slateValue, setSlateValue] = useState<SlateValue>(() =>
@@ -236,6 +219,104 @@ export function RichTextEditor({
     useState<string>(DEFAULT_TEXT_COLOR);
   const [showTextColorPicker, setShowTextColorPicker] = useState(false);
   const colorPickerRef = useRef<HTMLDivElement>(null);
+
+  // Active formatting states for persistent button states
+  const [activeFormats, setActiveFormats] = useState<{
+    bold: boolean;
+    italic: boolean;
+    underline: boolean;
+    'bulleted-list': boolean;
+    'numbered-list': boolean;
+    'block-quote': boolean;
+    'align-left': boolean;
+    'align-center': boolean;
+    'align-right': boolean;
+  }>({
+    bold: false,
+    italic: false,
+    underline: false,
+    'bulleted-list': false,
+    'numbered-list': false,
+    'block-quote': false,
+    'align-left': false,
+    'align-center': false,
+    'align-right': false,
+  });
+
+  // Function to update active formats based on current editor state
+  const updateActiveFormats = useCallback(() => {
+    if (!editor.selection) return;
+
+    setActiveFormats({
+      bold: isMarkActive(editor, 'bold'),
+      italic: isMarkActive(editor, 'italic'),
+      underline: isMarkActive(editor, 'underline'),
+      'bulleted-list': isBlockActive(editor, 'bulleted-list'),
+      'numbered-list': isBlockActive(editor, 'numbered-list'),
+      'block-quote': isBlockActive(editor, 'block-quote'),
+      'align-left': isBlockActive(editor, 'align-left'),
+      'align-center': isBlockActive(editor, 'align-center'),
+      'align-right': isBlockActive(editor, 'align-right'),
+    });
+  }, [editor]);
+
+  // Enhanced toggle functions that maintain persistent visual state
+  const toggleMarkPersistent = useCallback(
+    (format: keyof Omit<CustomText, 'text'>) => {
+      const currentlyActive =
+        activeFormats[format as keyof typeof activeFormats];
+
+      // Toggle the visual active state first
+      const newActiveState = !currentlyActive;
+      setActiveFormats((prev) => ({
+        ...prev,
+        [format]: newActiveState,
+      }));
+
+      // Apply or remove the mark in the editor
+      // This ensures the formatting will be applied to new text
+      if (newActiveState) {
+        Editor.addMark(editor, format, true);
+      } else {
+        Editor.removeMark(editor, format);
+      }
+
+      // Focus the editor to maintain cursor position
+      ReactEditor.focus(editor);
+    },
+    [editor, activeFormats]
+  );
+
+  const toggleBlockPersistent = useCallback(
+    (format: string) => {
+      const currentlyActive =
+        activeFormats[format as keyof typeof activeFormats];
+
+      // For block formats, we need to handle them differently
+      // Lists and quotes should toggle their visual state
+      if (['bulleted-list', 'numbered-list', 'block-quote'].includes(format)) {
+        setActiveFormats((prev) => ({
+          ...prev,
+          [format]: !currentlyActive,
+        }));
+      }
+
+      // Apply the block formatting using the existing toggleBlock function
+      toggleBlock(editor, format);
+
+      // Focus the editor to maintain cursor position
+      ReactEditor.focus(editor);
+    },
+    [editor, activeFormats]
+  );
+
+  // Initialize active formats only when component mounts
+  useEffect(() => {
+    if (editor.selection) {
+      updateActiveFormats();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   // Text color functions
   const handleTextColorChange = useCallback(
@@ -290,29 +371,42 @@ export function RichTextEditor({
   // Keyboard shortcuts handler
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
-      if (!event.ctrlKey && !event.metaKey) return;
+      // Handle keyboard shortcuts
+      if (event.ctrlKey || event.metaKey) {
+        switch (event.key) {
+          case 'b': {
+            event.preventDefault();
+            toggleMarkPersistent('bold');
+            break;
+          }
+          case 'i': {
+            event.preventDefault();
+            toggleMarkPersistent('italic');
+            break;
+          }
+          case 'u': {
+            event.preventDefault();
+            toggleMarkPersistent('underline');
+            break;
+          }
+          default:
+            break;
+        }
+        return;
+      }
 
-      switch (event.key) {
-        case 'b': {
-          event.preventDefault();
-          toggleMark(editor, 'bold');
-          break;
-        }
-        case 'i': {
-          event.preventDefault();
-          toggleMark(editor, 'italic');
-          break;
-        }
-        case 'u': {
-          event.preventDefault();
-          toggleMark(editor, 'underline');
-          break;
-        }
-        default:
-          break;
+      // For regular typing, ensure active marks are applied
+      if (event.key.length === 1 || event.key === 'Enter') {
+        // Apply active formatting marks before typing
+        Object.entries(activeFormats).forEach(([format, isActive]) => {
+          if (['bold', 'italic', 'underline'].includes(format) && isActive) {
+            const markFormat = format as keyof Omit<CustomText, 'text'>;
+            Editor.addMark(editor, markFormat, true);
+          }
+        });
       }
     },
-    [editor]
+    [editor, activeFormats, toggleMarkPersistent]
   );
 
   // Paste handler for email formatting
@@ -383,6 +477,9 @@ export function RichTextEditor({
       setSlateValue(newValue);
       const htmlValue = slateToHtml(newValue);
       onChange(htmlValue);
+
+      // Don't update active formats here to preserve persistent visual state
+      // The visual state should only change when buttons are explicitly clicked
     },
     [onChange]
   );
@@ -416,16 +513,7 @@ export function RichTextEditor({
             {children}
           </blockquote>
         );
-      case 'code-block':
-        return (
-          <pre
-            {...attributes}
-            style={style}
-            className='bg-muted p-3 rounded-md font-mono text-sm overflow-x-auto my-2'
-          >
-            <code>{children}</code>
-          </pre>
-        );
+
       case 'bulleted-list':
         return (
           <ul {...attributes} style={style}>
@@ -485,8 +573,8 @@ export function RichTextEditor({
     format: keyof Omit<CustomText, 'text'>;
     icon: LucideIcon;
   }) => {
-    const editor = useSlate();
-    const isActive = isMarkActive(editor, format);
+    // Use persistent active state instead of isMarkActive
+    const isActive = activeFormats[format as keyof typeof activeFormats];
 
     return (
       <Button
@@ -497,7 +585,7 @@ export function RichTextEditor({
           'h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700',
           isActive && 'bg-gray-200 dark:bg-gray-600'
         )}
-        onClick={() => toggleMark(editor, format)}
+        onClick={() => toggleMarkPersistent(format)}
         disabled={disabled}
       >
         <Icon className='h-4 w-4' />
@@ -512,8 +600,17 @@ export function RichTextEditor({
     format: string;
     icon: LucideIcon;
   }) => {
-    const editor = useSlate();
-    const isActive = isBlockActive(editor, format);
+    // Use persistent active state for supported formats, fallback to isBlockActive for others
+    const isActive = [
+      'bulleted-list',
+      'numbered-list',
+      'block-quote',
+      'align-left',
+      'align-center',
+      'align-right',
+    ].includes(format)
+      ? activeFormats[format as keyof typeof activeFormats]
+      : isBlockActive(editor, format);
 
     return (
       <Button
@@ -524,7 +621,22 @@ export function RichTextEditor({
           'h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700',
           isActive && 'bg-gray-200 dark:bg-gray-600'
         )}
-        onClick={() => toggleBlock(editor, format)}
+        onClick={() => {
+          if (
+            [
+              'bulleted-list',
+              'numbered-list',
+              'block-quote',
+              'align-left',
+              'align-center',
+              'align-right',
+            ].includes(format)
+          ) {
+            toggleBlockPersistent(format);
+          } else {
+            toggleBlock(editor, format);
+          }
+        }}
         disabled={disabled}
       >
         <Icon className='h-4 w-4' />
@@ -543,6 +655,7 @@ export function RichTextEditor({
         <div className='space-y-2 mb-4'>
           <div className='flex items-center gap-1'>
             <Select
+              key='format-select'
               defaultValue='paragraph'
               onValueChange={(value) => {
                 if (disabled) return;
@@ -554,8 +667,6 @@ export function RichTextEditor({
                   toggleBlock(editor, 'heading-two');
                 } else if (value === 'blockquote') {
                   toggleBlock(editor, 'block-quote');
-                } else if (value === 'codeblock') {
-                  toggleBlock(editor, 'code-block');
                 } else {
                   toggleBlock(editor, 'paragraph');
                 }
@@ -577,14 +688,12 @@ export function RichTextEditor({
                 <SelectItem value='blockquote'>
                   <span className='text-sm italic text-gray-600'>Quote</span>
                 </SelectItem>
-                <SelectItem value='codeblock'>
-                  <span className='text-sm font-mono text-gray-600'>Code</span>
-                </SelectItem>
               </SelectContent>
             </Select>
 
             <Separator orientation='vertical' className='h-6 mx-1' />
 
+            {/* Text Formatting Group */}
             <MarkButton format='bold' icon={Bold} />
             <MarkButton format='italic' icon={Italic} />
             <MarkButton format='underline' icon={Underline} />
@@ -649,17 +758,21 @@ export function RichTextEditor({
 
             <Separator orientation='vertical' className='h-6 mx-1' />
 
-            <BlockButton format='bulleted-list' icon={List} />
-            <BlockButton format='numbered-list' icon={ListOrdered} />
+            {/* Block Formatting Group */}
             <BlockButton format='block-quote' icon={Quote} />
-            <BlockButton format='code-block' icon={Code} />
 
             <Separator orientation='vertical' className='h-6 mx-1' />
 
-            {/* Text Alignment Buttons */}
+            {/* Text Alignment Group */}
             <BlockButton format='align-left' icon={AlignLeft} />
             <BlockButton format='align-center' icon={AlignCenter} />
             <BlockButton format='align-right' icon={AlignRight} />
+
+            <Separator orientation='vertical' className='h-6 mx-1' />
+
+            {/* List Formatting Group */}
+            <BlockButton format='bulleted-list' icon={List} />
+            <BlockButton format='numbered-list' icon={ListOrdered} />
           </div>
         </div>
 
