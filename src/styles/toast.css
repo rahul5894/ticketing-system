@@ -3,6 +3,7 @@
   border-radius: 8px;
   padding: 14px 18px 14px 16px;
   border-width: 1px;
+  position: relative;
   border-style: solid;
 }
 

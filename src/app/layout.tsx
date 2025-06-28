@@ -39,9 +39,9 @@ export default function RootLayout({
               <SessionValidator>{children}</SessionValidator>
               <Toaster
                 position='top-right'
-                expand={true}
-                richColors={true}
-                closeButton={true}
+                expand={false}
+                richColors={false}
+                closeButton={false}
               />
             </SupabaseProvider>
           </ThemeProvider>
