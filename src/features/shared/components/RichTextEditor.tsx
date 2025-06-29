@@ -4,8 +4,8 @@ import React, {
   useState,
   useMemo,
   useCallback,
-  useEffect,
   useRef,
+  useEffect,
 } from 'react';
 import {
   createEditor,
@@ -37,11 +37,11 @@ import {
   AlignCenter,
   AlignRight,
   Paperclip,
+  type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { HexColorPicker } from 'react-colorful';
 import { RenderElementProps, RenderLeafProps } from 'slate-react';
-import { LucideIcon } from 'lucide-react';
 import {
   CustomEditor,
   CustomText,
@@ -51,34 +51,13 @@ import {
   isMarkActive,
 } from './slate-types';
 
-// Special constant to indicate default theme color should be used
 const DEFAULT_TEXT_COLOR = 'default';
 
-// Minimal CSS for react-colorful
 const colorPickerStyles = `
-  .react-colorful {
-    width: 200px;
-    height: 200px;
-  }
-
-  .react-colorful__saturation {
-    width: 200px;
-    height: 150px;
-    border-radius: 8px 8px 0 0;
-  }
-
-  .react-colorful__hue {
-    height: 24px;
-    border-radius: 0 0 8px 8px;
-  }
-
-  .react-colorful__pointer {
-    width: 16px;
-    height: 16px;
-    border: 2px solid #fff;
-    border-radius: 50%;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  }
+  .react-colorful { width: 200px; height: 200px; }
+  .react-colorful__saturation { width: 200px; height: 150px; border-radius: 8px 8px 0 0; }
+  .react-colorful__hue { height: 24px; border-radius: 0 0 8px 8px; }
+  .react-colorful__pointer { width: 16px; height: 16px; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); }
 `;
 
 interface RichTextEditorProps {
@@ -90,8 +69,6 @@ interface RichTextEditorProps {
   onAttachClick?: () => void;
 }
 
-// Helper functions for Slate operations
-
 const toggleBlock = (editor: CustomEditor, format: string) => {
   const isActive = isBlockActive(editor, format);
   const isList = ['numbered-list', 'bulleted-list'].includes(format);
@@ -99,7 +76,6 @@ const toggleBlock = (editor: CustomEditor, format: string) => {
     format
   );
 
-  // Unwrap any existing lists
   Transforms.unwrapNodes(editor, {
     match: (n) =>
       !Editor.isEditor(n) &&
@@ -109,7 +85,6 @@ const toggleBlock = (editor: CustomEditor, format: string) => {
   });
 
   if (isAlignment) {
-    // Handle text alignment by setting CSS styles
     const alignValue = format.replace('align-', '') as
       | 'left'
       | 'center'
@@ -118,89 +93,91 @@ const toggleBlock = (editor: CustomEditor, format: string) => {
       style: { textAlign: alignValue === 'left' ? undefined : alignValue },
     } as Partial<SlateElement>);
   } else if (isActive) {
-    // If toggling off, convert to paragraph
     Transforms.setNodes<SlateElement>(editor, { type: 'paragraph' });
   } else if (isList) {
-    // If creating a list, first convert to list-item
     Transforms.setNodes<SlateElement>(editor, { type: 'list-item' });
-    // Then wrap in the appropriate list container
-    if (format === 'numbered-list') {
-      Transforms.wrapNodes(editor, { type: 'numbered-list', children: [] });
-    } else if (format === 'bulleted-list') {
-      Transforms.wrapNodes(editor, { type: 'bulleted-list', children: [] });
-    }
+    Transforms.wrapNodes(editor, {
+      type: format as 'numbered-list' | 'bulleted-list',
+      children: [],
+    });
   } else {
-    // For headings, blockquote and other block types
-    if (format === 'heading-one') {
-      Transforms.setNodes<SlateElement>(editor, { type: 'heading-one' });
-    } else if (format === 'heading-two') {
-      Transforms.setNodes<SlateElement>(editor, { type: 'heading-two' });
-    } else if (format === 'block-quote') {
-      Transforms.setNodes<SlateElement>(editor, { type: 'block-quote' });
-    } else {
-      Transforms.setNodes<SlateElement>(editor, { type: 'paragraph' });
-    }
+    const nodeType = (
+      ['heading-one', 'heading-two', 'block-quote'].includes(format)
+        ? format
+        : 'paragraph'
+    ) as 'heading-one' | 'heading-two' | 'block-quote' | 'paragraph';
+    Transforms.setNodes<SlateElement>(editor, { type: nodeType });
   }
 };
 
-// Convert HTML to Slate value (basic implementation)
-const htmlToSlate = (html: string): SlateValue => {
-  if (!html || html.trim() === '') {
-    return createInitialValue();
-  }
+const htmlToSlate = (html: string): SlateValue =>
+  !html?.trim()
+    ? createInitialValue()
+    : [
+        {
+          type: 'paragraph',
+          children: [{ text: html.replace(/<[^>]*>/g, '') }],
+        },
+      ];
 
-  // For now, return a simple paragraph with the HTML as text
-  // This can be enhanced later with proper HTML parsing
-  return [
-    {
-      type: 'paragraph',
-      children: [{ text: html.replace(/<[^>]*>/g, '') }],
-    },
-  ];
-};
-
-// Convert Slate value to HTML (basic implementation)
-const slateToHtml = (value: SlateValue): string => {
-  return value
+const slateToHtml = (value: SlateValue): string =>
+  value
     .map((node) => {
-      if (SlateElement.isElement(node)) {
-        const children = node.children
-          .map((child) => {
-            if (Text.isText(child)) {
-              let text = child.text;
-              if (child.bold) text = `<strong>${text}</strong>`;
-              if (child.italic) text = `<em>${text}</em>`;
-              if (child.underline) text = `<u>${text}</u>`;
-              if (child.color && child.color !== DEFAULT_TEXT_COLOR) {
-                text = `<span style="color: ${child.color}">${text}</span>`;
-              }
-              return text;
-            }
-            return '';
-          })
-          .join('');
+      if (!SlateElement.isElement(node)) return '';
 
-        switch (node.type) {
-          case 'heading-one':
-            return `<h1>${children}</h1>`;
-          case 'heading-two':
-            return `<h2>${children}</h2>`;
-          case 'block-quote':
-            return `<blockquote>${children}</blockquote>`;
-          case 'bulleted-list':
-            return `<ul>${children}</ul>`;
-          case 'numbered-list':
-            return `<ol>${children}</ol>`;
-          case 'list-item':
-            return `<li>${children}</li>`;
-          default:
-            return `<p>${children}</p>`;
-        }
+      const children = node.children
+        .map((child) => {
+          if (!Text.isText(child)) return '';
+          let text = child.text;
+          // Apply color first (innermost) so formatting inherits it
+          if (child.color && child.color !== DEFAULT_TEXT_COLOR)
+            text = `<span style="color: ${child.color}">${text}</span>`;
+          if (child.bold) text = `<strong>${text}</strong>`;
+          if (child.italic) text = `<em>${text}</em>`;
+          if (child.underline)
+            text = `<u style="text-decoration-color: currentColor">${text}</u>`;
+          return text;
+        })
+        .join('');
+
+      // Handle block quotes with special styling
+      if (node.type === 'block-quote') {
+        const hasCustomColor = node.children.some(
+          (child) =>
+            Text.isText(child) &&
+            child.color &&
+            child.color !== DEFAULT_TEXT_COLOR
+        );
+        const customColor = hasCustomColor
+          ? node.children.find(
+              (child) =>
+                Text.isText(child) &&
+                child.color &&
+                child.color !== DEFAULT_TEXT_COLOR
+            )?.color
+          : null;
+
+        const borderStyle = customColor
+          ? `border-left: 4px solid ${customColor};`
+          : 'border-left: 4px solid hsl(var(--border));';
+        const textStyle = hasCustomColor
+          ? ''
+          : 'color: hsl(var(--muted-foreground));';
+
+        return `<blockquote style="${borderStyle} padding-left: 1rem; font-style: italic; margin: 0.5rem 0; ${textStyle}">${children}</blockquote>`;
       }
-      return '';
+
+      const tagMap = {
+        'heading-one': 'h1',
+        'heading-two': 'h2',
+        'bulleted-list': 'ul',
+        'numbered-list': 'ol',
+        'list-item': 'li',
+      };
+      const tag = tagMap[node.type as keyof typeof tagMap] || 'p';
+      return `<${tag}>${children}</${tag}>`;
     })
     .join('');
-};
 
 export function RichTextEditor({
   value,
@@ -211,115 +188,53 @@ export function RichTextEditor({
   onAttachClick,
 }: RichTextEditorProps) {
   const editor = useMemo(() => withReact(createEditor()), []);
-
-  // Convert HTML value to Slate value
   const [slateValue, setSlateValue] = useState<SlateValue>(() =>
     htmlToSlate(value)
   );
-
-  // Text color state
   const [currentTextColor, setCurrentTextColor] =
     useState<string>(DEFAULT_TEXT_COLOR);
   const [showTextColorPicker, setShowTextColorPicker] = useState(false);
+  const [activeFormats, setActiveFormats] = useState<Record<string, boolean>>(
+    () => ({
+      bold: false,
+      italic: false,
+      underline: false,
+    })
+  );
   const colorPickerRef = useRef<HTMLDivElement>(null);
 
-  // Active formatting states for persistent button states
-  const [activeFormats, setActiveFormats] = useState<{
-    bold: boolean;
-    italic: boolean;
-    underline: boolean;
-    'bulleted-list': boolean;
-    'numbered-list': boolean;
-    'block-quote': boolean;
-    'align-left': boolean;
-    'align-center': boolean;
-    'align-right': boolean;
-  }>({
-    bold: false,
-    italic: false,
-    underline: false,
-    'bulleted-list': false,
-    'numbered-list': false,
-    'block-quote': false,
-    'align-left': false,
-    'align-center': false,
-    'align-right': false,
-  });
-
-  // Function to update active formats based on current editor state
-  const updateActiveFormats = useCallback(() => {
-    if (!editor.selection) return;
-
-    setActiveFormats({
-      bold: isMarkActive(editor, 'bold'),
-      italic: isMarkActive(editor, 'italic'),
-      underline: isMarkActive(editor, 'underline'),
-      'bulleted-list': isBlockActive(editor, 'bulleted-list'),
-      'numbered-list': isBlockActive(editor, 'numbered-list'),
-      'block-quote': isBlockActive(editor, 'block-quote'),
-      'align-left': isBlockActive(editor, 'align-left'),
-      'align-center': isBlockActive(editor, 'align-center'),
-      'align-right': isBlockActive(editor, 'align-right'),
-    });
-  }, [editor]);
-
-  // Enhanced toggle functions that maintain persistent visual state
-  const toggleMarkPersistent = useCallback(
+  const toggleMark = useCallback(
     (format: keyof Omit<CustomText, 'text'>) => {
-      const currentlyActive =
-        activeFormats[format as keyof typeof activeFormats];
+      const isActive =
+        activeFormats[format] !== undefined
+          ? activeFormats[format]
+          : isMarkActive(editor, format);
+      const newActiveState = !isActive;
 
-      // Toggle the visual active state first
-      const newActiveState = !currentlyActive;
-      setActiveFormats((prev) => ({
-        ...prev,
-        [format]: newActiveState,
-      }));
+      // Update persistent state
+      setActiveFormats((prev) => ({ ...prev, [format]: newActiveState }));
 
-      // Apply or remove the mark in the editor
-      // This ensures the formatting will be applied to new text
       if (newActiveState) {
         Editor.addMark(editor, format, true);
+        // Apply current text color when adding formatting
+        if (currentTextColor !== DEFAULT_TEXT_COLOR) {
+          Editor.addMark(editor, 'color', currentTextColor);
+        }
       } else {
         Editor.removeMark(editor, format);
       }
-
-      // Focus the editor to maintain cursor position
       ReactEditor.focus(editor);
     },
-    [editor, activeFormats]
+    [editor, currentTextColor, activeFormats]
   );
 
-  const toggleBlockPersistent = useCallback(
+  const toggleBlockFormat = useCallback(
     (format: string) => {
-      const currentlyActive =
-        activeFormats[format as keyof typeof activeFormats];
-
-      // For block formats, we need to handle them differently
-      // Lists and quotes should toggle their visual state
-      if (['bulleted-list', 'numbered-list', 'block-quote'].includes(format)) {
-        setActiveFormats((prev) => ({
-          ...prev,
-          [format]: !currentlyActive,
-        }));
-      }
-
-      // Apply the block formatting using the existing toggleBlock function
       toggleBlock(editor, format);
-
-      // Focus the editor to maintain cursor position
       ReactEditor.focus(editor);
     },
-    [editor, activeFormats]
+    [editor]
   );
-
-  // Initialize active formats only when component mounts
-  useEffect(() => {
-    if (editor.selection) {
-      updateActiveFormats();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run once on mount
 
   // Text color functions
   const handleTextColorChange = useCallback(
@@ -371,73 +286,41 @@ export function RichTextEditor({
     return currentTextColor;
   }, [currentTextColor, getComputedThemeColor]);
 
-  // Keyboard shortcuts handler
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
-      // Handle keyboard shortcuts
       if (event.ctrlKey || event.metaKey) {
         switch (event.key) {
-          case 'b': {
+          case 'b':
             event.preventDefault();
-            toggleMarkPersistent('bold');
+            toggleMark('bold');
             break;
-          }
-          case 'i': {
+          case 'i':
             event.preventDefault();
-            toggleMarkPersistent('italic');
+            toggleMark('italic');
             break;
-          }
-          case 'u': {
+          case 'u':
             event.preventDefault();
-            toggleMarkPersistent('underline');
-            break;
-          }
-          default:
+            toggleMark('underline');
             break;
         }
-        return;
-      }
-
-      // For regular typing, ensure active marks are applied
-      if (event.key.length === 1 || event.key === 'Enter') {
-        // Apply active formatting marks before typing
-        Object.entries(activeFormats).forEach(([format, isActive]) => {
-          if (['bold', 'italic', 'underline'].includes(format) && isActive) {
-            const markFormat = format as keyof Omit<CustomText, 'text'>;
-            Editor.addMark(editor, markFormat, true);
-          }
-        });
       }
     },
-    [editor, activeFormats, toggleMarkPersistent]
+    [toggleMark]
   );
 
-  // Paste handler for email formatting
   const handlePaste = useCallback(
     (event: React.ClipboardEvent) => {
       const pastedText = event.clipboardData.getData('text/plain');
-
-      // Check if pasted text is an email address
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (emailRegex.test(pastedText.trim())) {
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pastedText.trim())) {
         event.preventDefault();
-
-        // Insert the email as plain text for now
-        // In a more advanced implementation, this could be a link
         editor.insertText(pastedText.trim());
       }
-      // For non-email text, let the default paste behavior handle it
     },
     [editor]
   );
 
-  // Update Slate value when external value changes
-  useEffect(() => {
-    const newSlateValue = htmlToSlate(value);
-    setSlateValue(newSlateValue);
-  }, [value]);
+  useEffect(() => setSlateValue(htmlToSlate(value)), [value]);
 
-  // Apply current text color to new text
   useEffect(() => {
     if (currentTextColor !== DEFAULT_TEXT_COLOR) {
       Editor.addMark(editor, 'color', currentTextColor);
@@ -487,67 +370,102 @@ export function RichTextEditor({
     [onChange]
   );
 
-  // Render element function
-  const renderElement = useCallback((props: RenderElementProps) => {
-    const { attributes, children, element } = props;
-    const style =
-      (element as SlateElement & { style?: React.CSSProperties }).style || {};
-
-    switch (element.type) {
-      case 'heading-one':
-        return (
-          <h1 {...attributes} style={style}>
-            {children}
-          </h1>
-        );
-      case 'heading-two':
-        return (
-          <h2 {...attributes} style={style}>
-            {children}
-          </h2>
-        );
-      case 'block-quote':
-        return (
-          <blockquote
-            {...attributes}
-            style={style}
-            className='border-l-4 border-border pl-4 italic text-muted-foreground my-2'
-          >
-            {children}
-          </blockquote>
-        );
-
-      case 'bulleted-list':
-        return (
-          <ul {...attributes} style={style}>
-            {children}
-          </ul>
-        );
-      case 'numbered-list':
-        return (
-          <ol {...attributes} style={style}>
-            {children}
-          </ol>
-        );
-      case 'list-item':
-        return (
-          <li {...attributes} style={style}>
-            {children}
-          </li>
-        );
-      default:
-        return (
-          <p {...attributes} style={style}>
-            {children}
-          </p>
-        );
-    }
+  // Helper function to check if any child has custom color
+  const hasCustomColor = useCallback((element: SlateElement): boolean => {
+    return element.children.some((child) => {
+      if (Text.isText(child)) {
+        return child.color && child.color !== DEFAULT_TEXT_COLOR;
+      }
+      return false;
+    });
   }, []);
+
+  // Render element function
+  const renderElement = useCallback(
+    (props: RenderElementProps) => {
+      const { attributes, children, element } = props;
+      const style =
+        (element as SlateElement & { style?: React.CSSProperties }).style || {};
+
+      switch (element.type) {
+        case 'heading-one':
+          return (
+            <h1 {...attributes} style={style}>
+              {children}
+            </h1>
+          );
+        case 'heading-two':
+          return (
+            <h2 {...attributes} style={style}>
+              {children}
+            </h2>
+          );
+        case 'block-quote': {
+          const hasColor = hasCustomColor(element);
+          const customColor = hasColor
+            ? element.children.find(
+                (child) =>
+                  Text.isText(child) &&
+                  child.color &&
+                  child.color !== DEFAULT_TEXT_COLOR
+              )?.color
+            : null;
+
+          return (
+            <blockquote
+              {...attributes}
+              style={{
+                ...style,
+                borderLeftColor: customColor || undefined,
+              }}
+              className={cn(
+                'border-l-4 pl-4 italic my-2',
+                hasColor ? '' : 'border-border text-muted-foreground'
+              )}
+            >
+              {children}
+            </blockquote>
+          );
+        }
+
+        case 'bulleted-list':
+          return (
+            <ul {...attributes} style={style}>
+              {children}
+            </ul>
+          );
+        case 'numbered-list':
+          return (
+            <ol {...attributes} style={style}>
+              {children}
+            </ol>
+          );
+        case 'list-item':
+          return (
+            <li {...attributes} style={style}>
+              {children}
+            </li>
+          );
+        default:
+          return (
+            <p {...attributes} style={style}>
+              {children}
+            </p>
+          );
+      }
+    },
+    [hasCustomColor]
+  );
 
   // Render leaf function for text formatting
   const renderLeaf = useCallback((props: RenderLeafProps) => {
     const { attributes, children, leaf } = props;
     let element = children;
+
+    // Apply color first (innermost) so formatting inherits it
+    if (leaf.color && leaf.color !== DEFAULT_TEXT_COLOR) {
+      element = <span style={{ color: leaf.color }}>{element}</span>;
+    }
 
     if (leaf.bold) {
       element = <strong>{element}</strong>;
@@ -558,62 +476,28 @@ export function RichTextEditor({
     }
 
     if (leaf.underline) {
-      element = <u>{element}</u>;
-    }
-
-    if (leaf.color && leaf.color !== DEFAULT_TEXT_COLOR) {
-      element = <span style={{ color: leaf.color }}>{element}</span>;
+      element = (
+        <u style={{ textDecorationColor: 'currentColor' }}>{element}</u>
+      );
     }
 
     return <span {...attributes}>{element}</span>;
   }, []);
 
-  // Toolbar button components
-  const MarkButton = ({
+  const ToolbarButton = ({
     format,
     icon: Icon,
-  }: {
-    format: keyof Omit<CustomText, 'text'>;
-    icon: LucideIcon;
-  }) => {
-    // Use persistent active state instead of isMarkActive
-    const isActive = activeFormats[format as keyof typeof activeFormats];
-
-    return (
-      <Button
-        type='button'
-        variant='ghost'
-        size='sm'
-        className={cn(
-          'h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700',
-          isActive && 'bg-gray-200 dark:bg-gray-600'
-        )}
-        onClick={() => toggleMarkPersistent(format)}
-        disabled={disabled}
-      >
-        <Icon className='h-4 w-4' />
-      </Button>
-    );
-  };
-
-  const BlockButton = ({
-    format,
-    icon: Icon,
+    isBlock = false,
   }: {
     format: string;
     icon: LucideIcon;
+    isBlock?: boolean;
   }) => {
-    // Use persistent active state for supported formats, fallback to isBlockActive for others
-    const isActive = [
-      'bulleted-list',
-      'numbered-list',
-      'block-quote',
-      'align-left',
-      'align-center',
-      'align-right',
-    ].includes(format)
-      ? activeFormats[format as keyof typeof activeFormats]
-      : isBlockActive(editor, format);
+    const isActive = isBlock
+      ? isBlockActive(editor, format)
+      : activeFormats[format] !== undefined
+      ? activeFormats[format]
+      : isMarkActive(editor, format as keyof Omit<CustomText, 'text'>);
 
     return (
       <Button
@@ -624,22 +508,11 @@ export function RichTextEditor({
           'h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700',
           isActive && 'bg-gray-200 dark:bg-gray-600'
         )}
-        onClick={() => {
-          if (
-            [
-              'bulleted-list',
-              'numbered-list',
-              'block-quote',
-              'align-left',
-              'align-center',
-              'align-right',
-            ].includes(format)
-          ) {
-            toggleBlockPersistent(format);
-          } else {
-            toggleBlock(editor, format);
-          }
-        }}
+        onClick={() =>
+          isBlock
+            ? toggleBlockFormat(format)
+            : toggleMark(format as keyof Omit<CustomText, 'text'>)
+        }
         disabled={disabled}
       >
         <Icon className='h-4 w-4' />
@@ -697,9 +570,9 @@ export function RichTextEditor({
             <Separator orientation='vertical' className='h-6 mx-1' />
 
             {/* Text Formatting Group */}
-            <MarkButton format='bold' icon={Bold} />
-            <MarkButton format='italic' icon={Italic} />
-            <MarkButton format='underline' icon={Underline} />
+            <ToolbarButton format='bold' icon={Bold} />
+            <ToolbarButton format='italic' icon={Italic} />
+            <ToolbarButton format='underline' icon={Underline} />
 
             {/* Text Color Picker */}
             <div className='relative color-picker-container'>
@@ -762,20 +635,20 @@ export function RichTextEditor({
             <Separator orientation='vertical' className='h-6 mx-1' />
 
             {/* Block Formatting Group */}
-            <BlockButton format='block-quote' icon={Quote} />
+            <ToolbarButton format='block-quote' icon={Quote} isBlock />
 
             <Separator orientation='vertical' className='h-6 mx-1' />
 
             {/* Text Alignment Group */}
-            <BlockButton format='align-left' icon={AlignLeft} />
-            <BlockButton format='align-center' icon={AlignCenter} />
-            <BlockButton format='align-right' icon={AlignRight} />
+            <ToolbarButton format='align-left' icon={AlignLeft} isBlock />
+            <ToolbarButton format='align-center' icon={AlignCenter} isBlock />
+            <ToolbarButton format='align-right' icon={AlignRight} isBlock />
 
             <Separator orientation='vertical' className='h-6 mx-1' />
 
             {/* List Formatting Group */}
-            <BlockButton format='bulleted-list' icon={List} />
-            <BlockButton format='numbered-list' icon={ListOrdered} />
+            <ToolbarButton format='bulleted-list' icon={List} isBlock />
+            <ToolbarButton format='numbered-list' icon={ListOrdered} isBlock />
 
             <Separator orientation='vertical' className='h-6 mx-1' />
 

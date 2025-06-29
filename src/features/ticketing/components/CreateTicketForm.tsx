@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -21,7 +21,7 @@ import {
   FormItem,
   FormLabel,
 } from '@/features/shared/components/ui/form';
-import { UserAutocomplete } from '@/features/shared/components/UserAutocomplete';
+import { UserAutocomplete } from '@/features/shared/components';
 import { RichTextEditor } from '@/features/shared/components/RichTextEditor';
 import {
   FileUpload,
@@ -54,20 +54,30 @@ const CreateTicketFormSchema = z.object({
 // Infer the type from the schema to ensure consistency
 export type CreateTicketFormData = z.infer<typeof CreateTicketFormSchema>;
 
-// Dot colors for dropdowns (matching TicketDetail)
-const priorityDotColors = {
-  low: 'bg-gray-500',
-  medium: 'bg-yellow-500',
-  high: 'bg-red-500',
-  urgent: 'bg-red-700',
-};
+const priorityConfig = {
+  low: { color: 'bg-gray-500', label: 'Low Priority' },
+  medium: { color: 'bg-yellow-500', label: 'Medium Priority' },
+  high: { color: 'bg-red-500', label: 'High Priority' },
+  urgent: { color: 'bg-red-700', label: 'Urgent Priority' },
+} as const;
 
-const departmentDotColors = {
-  sales: 'bg-orange-500',
-  support: 'bg-purple-500',
-  marketing: 'bg-pink-500',
-  technical: 'bg-blue-500',
-};
+const departmentConfig = {
+  sales: { color: 'bg-orange-500', label: 'Sales Department' },
+  support: { color: 'bg-purple-500', label: 'Support Department' },
+  marketing: { color: 'bg-pink-500', label: 'Marketing Department' },
+  technical: { color: 'bg-blue-500', label: 'Technical Department' },
+} as const;
+
+const DropdownOption = ({
+  config,
+}: {
+  config: { color: string; label: string };
+}) => (
+  <div className='flex items-center gap-2 text-xs'>
+    <div className={cn('w-1.5 h-1.5 mr-1 rounded-full', config.color)} />
+    {config.label}
+  </div>
+);
 
 export function CreateTicketForm({
   onSubmit,
@@ -75,9 +85,7 @@ export function CreateTicketForm({
   tenantId,
   isSubmitting = false,
 }: CreateTicketFormProps) {
-  // State
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-  const [isCreating, setIsCreating] = useState(false);
   const { user } = useUser();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -103,61 +111,44 @@ export function CreateTicketForm({
     fileInputRef.current?.click();
   };
 
-  // Handlers
-  const handleSubmit = async (data: CreateTicketFormData) => {
-    if (!user) {
-      console.error('User not authenticated');
-      return;
-    }
+  const handleSubmit = useCallback(
+    async (data: CreateTicketFormData) => {
+      if (!user) return;
 
-    setIsCreating(true);
+      try {
+        clearDraft();
 
-    try {
-      // Clear draft before submitting
-      clearDraft();
+        if (onSubmit) {
+          const attachments = uploadedFiles.map((f) => f.file);
+          onSubmit({ ...data, attachments });
+          return;
+        }
 
-      // If legacy onSubmit is provided, use it (for backward compatibility)
-      if (onSubmit) {
-        const attachments = uploadedFiles.map((f) => f.file);
-        onSubmit({ ...data, attachments });
-        return;
+        const response = await fetch('/api/tickets', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: data.title,
+            description: data.description,
+            priority: data.priority,
+            department: data.department,
+            tenant_id: tenantId,
+            assigned_to: data.assignedTo,
+            cc: data.cc,
+          }),
+        });
+
+        if (!response.ok) throw new Error('Failed to create ticket');
+
+        const ticket = await response.json();
+        form.reset();
+        onSuccess?.(ticket.id);
+      } catch (error) {
+        console.error('Failed to create ticket:', error);
       }
-
-      // Otherwise, use the new API
-      const response = await fetch('/api/tickets', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title: data.title,
-          description: data.description,
-          priority: data.priority,
-          department: data.department,
-          tenant_id: tenantId,
-          assigned_to: data.assignedTo,
-          cc: data.cc,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create ticket');
-      }
-
-      const ticket = await response.json();
-
-      // Reset form
-      form.reset();
-
-      // Call success callback
-      onSuccess?.(ticket.id);
-    } catch (error) {
-      console.error('Failed to create ticket:', error);
-      // TODO: Add proper error handling/toast notification
-    } finally {
-      setIsCreating(false);
-    }
-  };
+    },
+    [user, clearDraft, onSubmit, uploadedFiles, tenantId, form, onSuccess]
+  );
 
   const handleDiscard = () => {
     // Clear draft and reset form
@@ -200,7 +191,7 @@ export function CreateTicketForm({
                       <div
                         className={cn(
                           'w-1.5 h-1.5 rounded-full mr-1',
-                          priorityDotColors[field.value]
+                          priorityConfig[field.value].color
                         )}
                       />
                       <SelectValue>
@@ -210,30 +201,11 @@ export function CreateTicketForm({
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value='low'>
-                        <div className='flex items-center gap-2 text-xs'>
-                          <div className='w-1.5 h-1.5 rounded-full mr-1 bg-gray-500' />
-                          Low Priority
-                        </div>
-                      </SelectItem>
-                      <SelectItem value='medium'>
-                        <div className='flex items-center gap-2 text-xs'>
-                          <div className='w-1.5 h-1.5 rounded-full mr-1 bg-yellow-500' />
-                          Medium Priority
-                        </div>
-                      </SelectItem>
-                      <SelectItem value='high'>
-                        <div className='flex items-center gap-2 text-xs'>
-                          <div className='w-1.5 h-1.5 rounded-full mr-1 bg-red-500' />
-                          High Priority
-                        </div>
-                      </SelectItem>
-                      <SelectItem value='urgent'>
-                        <div className='flex items-center gap-2 text-xs'>
-                          <div className='w-1.5 h-1.5 rounded-full mr-1 bg-red-700' />
-                          Urgent Priority
-                        </div>
-                      </SelectItem>
+                      {Object.entries(priorityConfig).map(([value, config]) => (
+                        <SelectItem key={value} value={value}>
+                          <DropdownOption config={config} />
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 )}
@@ -255,7 +227,7 @@ export function CreateTicketForm({
                       <div
                         className={cn(
                           'w-1.5 h-1.5 mr-1 rounded-full',
-                          departmentDotColors[field.value]
+                          departmentConfig[field.value].color
                         )}
                       />
                       <SelectValue>
@@ -265,30 +237,13 @@ export function CreateTicketForm({
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value='sales'>
-                        <div className='flex items-center gap-2 text-xs'>
-                          <div className='w-1.5 h-1.5 mr-1 rounded-full bg-orange-500' />
-                          Sales Department
-                        </div>
-                      </SelectItem>
-                      <SelectItem value='support'>
-                        <div className='flex items-center gap-2 text-xs'>
-                          <div className='w-1.5 h-1.5 mr-1 rounded-full bg-purple-500' />
-                          Support Department
-                        </div>
-                      </SelectItem>
-                      <SelectItem value='marketing'>
-                        <div className='flex items-center gap-2 text-xs'>
-                          <div className='w-1.5 h-1.5 mr-1 rounded-full bg-pink-500' />
-                          Marketing Department
-                        </div>
-                      </SelectItem>
-                      <SelectItem value='technical'>
-                        <div className='flex items-center gap-2 text-xs'>
-                          <div className='w-1.5 h-1.5 mr-1 rounded-full bg-blue-500' />
-                          Technical Department
-                        </div>
-                      </SelectItem>
+                      {Object.entries(departmentConfig).map(
+                        ([value, config]) => (
+                          <SelectItem key={value} value={value}>
+                            <DropdownOption config={config} />
+                          </SelectItem>
+                        )
+                      )}
                     </SelectContent>
                   </Select>
                 )}
@@ -315,7 +270,7 @@ export function CreateTicketForm({
                         Assign To (Admins & Agents)
                       </FormLabel>
                       <UserAutocomplete
-                        value={field.value}
+                        value={field.value || ''}
                         onChange={field.onChange}
                         placeholder='Select user to assign...'
                         roleFilter={['admin', 'agent']}
@@ -411,11 +366,11 @@ export function CreateTicketForm({
                 </Button>
                 <Button
                   type='submit'
-                  disabled={isSubmitting || isCreating}
+                  disabled={isSubmitting}
                   onClick={form.handleSubmit(handleSubmit)}
                 >
                   <Send className='h-4 w-4 mr-1' />
-                  {isSubmitting || isCreating ? 'Creating...' : 'Create Ticket'}
+                  {isSubmitting ? 'Creating...' : 'Create Ticket'}
                 </Button>
               </div>
             </div>

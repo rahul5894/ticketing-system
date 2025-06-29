@@ -135,6 +135,12 @@
     height: 100%;
   }
 
+  blockquote u,
+  blockquote strong,
+  blockquote em {
+    color: var(--text-muted-foreground) !important;
+  }
+
   /* Remove all outlines from inputs and interactive elements */
   input,
   textarea,
