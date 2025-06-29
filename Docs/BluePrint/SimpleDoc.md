@@ -1,8 +1,4 @@
-Understood — you want a detailed, comprehensive rewrite of **SimpleDoc** exactly like the style and depth you attached, but now incorporating **tenant-based system** and **full tenant isolation** properly, part by part.
-
-I’ll replicate the thoroughness of your original **SimpleDoc** but upgrade it fully with tenancy details, isolation, and soft delete.
-
-I will start with **Part 1: System Architecture & Project Setup with Tenant Isolation** in a detailed way, matching the style of your SimpleDoc, focusing on your exact architecture and modular monolith, clearly explaining how tenant isolation integrates deeply.
+Here’s the **updated SimpleDoc — Part 1: System Architecture & Project Setup with Tenant Isolation**, simplified but reflecting your enhanced architecture and tenant isolation approach:
 
 ---
 
@@ -10,147 +6,108 @@ I will start with **Part 1: System Architecture & Project Setup with Tenant Isol
 
 ---
 
-## 1. Introduction to Architecture
+## 1. Architecture Overview
 
-Your ticketing system is designed as a **Domain-Driven Modular Monolith**:
-
-- The entire application is a **single deployable unit**, simplifying deployment and operations.
-- Internally, the codebase is organized into **domains** such as `auth`, `ticketing`, `teams`, and `notifications`, allowing clear separation of concerns.
-- This modular domain structure facilitates scalability, maintainability, and enables teams to work independently on domains.
-- The monolithic approach allows shared database and code resources while maintaining modular boundaries.
+- The app is a **modular monolith**: one deployable unit with clear modules like auth, ticketing, teams, notifications.
+- Designed for **multi-tenancy**: many tenants share the same system securely.
+- Tenant data is isolated using a **shared database schema** with a `tenant_id` field in every relevant table.
+- Tenant isolation is enforced on the frontend, backend, and database layers.
 
 ---
 
-## 2. Tenant-Based Multi-Tenancy
+## 2. Multi-Tenancy & Tenant Isolation
 
-The system supports **multi-tenancy** — multiple independent tenants (organizations or clients) operate securely on the same system instance.
-
-- **Tenant Isolation** is a core principle: each tenant’s data is logically and physically isolated to prevent unauthorized cross-access.
-- The system uses a **shared schema multi-tenancy approach**:
-  A single database schema holds data for all tenants, distinguished by a `tenant_id` in every relevant table.
-- This approach enables easy onboarding of new tenants without complex database migrations or schema changes.
+- Each tenant corresponds to an organization or client.
+- Data from different tenants is separated logically by `tenant_id`.
+- Supabase Row Level Security (RLS) enforces tenant isolation at the database level using JWT claims.
+- JWT tokens from Clerk embed the tenant ID and user roles.
 
 ---
 
 ## 3. Tenant Isolation Implementation
 
-### 3.1 Tenant Context in Data Model
+- All tenant data tables have a `tenant_id` UUID column.
+- Example tables: users, tickets, responses, audit_logs, teams.
+- RLS policies restrict row access to matching `tenant_id` from JWT token.
 
-- Every relevant table in your database includes a `tenant_id` UUID column, linking data rows to their owning tenant.
-- Examples include:
-
-| Table        | Key Tenant Column |
-| ------------ | ----------------- |
-| `users`      | `tenant_id`       |
-| `tickets`    | `tenant_id`       |
-| `responses`  | `tenant_id`       |
-| `audit_logs` | `tenant_id`       |
-
-### 3.2 Row Level Security (RLS)
-
-- **Supabase PostgreSQL Row Level Security policies** enforce tenant isolation at the database level:
-
-  - RLS policies filter rows to only those where `tenant_id` matches the authenticated user’s tenant.
-  - Even if application bugs occur, the DB prevents cross-tenant data exposure.
-
-- RLS policies are defined per table, e.g.:
+Example RLS policy:
 
 ```sql
-CREATE POLICY "Tenant isolation policy" ON tickets
-  USING (tenant_id = current_setting('request.jwt.claim.tenant_id')::uuid);
+CREATE POLICY "Tenant row access" ON tickets
+USING (tenant_id = current_setting('request.jwt.claim.tenant_id')::uuid);
 ```
 
-- JWT claims issued on authentication include the tenant ID, which the DB reads to apply policies.
+---
 
-### 3.3 Tenant Context in Authentication
+## 4. Authentication & Tenant Context
 
-- User authentication is managed by Clerk.
-- Upon login, your backend syncs Clerk user info with your `users` table, including the user’s `tenant_id`.
-- Your backend generates JWT tokens embedding the user’s tenant ID as a claim.
-- All API calls use this tenant-aware JWT for authorization and data filtering.
+- Clerk handles authentication and session management.
+- On login/signup, users are linked to tenants in the users table.
+- Tokens embed tenant ID for backend tenant-aware access.
+- All API calls carry tenant context for filtering and authorization.
 
 ---
 
-## 4. Application Flow with Tenant Awareness
+## 5. Data Flow with Tenant Awareness
 
-- On login, the frontend stores user info including `tenant_id`.
-- Every client request or server action sends the user's JWT token with embedded `tenant_id`.
-- Backend services extract the `tenant_id` from the token and enforce it in queries.
-- Zustand stores frontend state scoped to the current tenant.
-- Tickets, responses, users, and audit logs queries filter by `tenant_id` — enforced both by backend logic and RLS.
-- This flow ensures **0% tenant data leakage**.
-
----
-
-## 5. Technology Stack Roles in Tenant Context
-
-| Technology         | Role with Tenant Awareness                                                   |
-| ------------------ | ---------------------------------------------------------------------------- |
-| **Next.js 15.3.4** | Frontend + backend server actions handle tenant-aware routing and API calls. |
-| **React 19.1.0**   | UI dynamically renders tenant-scoped data.                                   |
-| **Clerk**          | Authenticates users and manages tenant-linked user identities.               |
-| **Supabase**       | Database with RLS policies enforces tenant isolation.                        |
-| **Zustand**        | Holds tenant-scoped client state (user info, tickets).                       |
-| **Zod**            | Validates tenant-aware API input data.                                       |
-| **Tailwind CSS**   | Styles UI consistently across tenants.                                       |
+- Frontend stores tenant info after login.
+- All requests send JWT with tenant claims.
+- Backend extracts tenant ID and enforces it in queries.
+- Zustand manages tenant-scoped state.
+- Supabase realtime subscriptions only push data for the current tenant.
 
 ---
 
-## 6. Checklist for Tenant-Aware Setup
+## 6. Technology Stack Summary
 
-- [ ] Add `tenant_id` columns to all business-critical tables.
-- [ ] Implement Supabase RLS policies on all tenant-scoped tables.
-- [ ] Ensure Clerk sync process associates users with tenants.
-- [ ] Generate JWT tokens embedding tenant ID claim.
-- [ ] Modify backend API/server actions to extract and enforce tenant ID.
-- [ ] Scope frontend state and queries by tenant ID.
-- [ ] Write Zod schemas to validate tenant-bound data inputs.
-
----
-
-## 7. Summary
-
-By implementing **tenant-based multi-tenancy with strict tenant isolation using Supabase RLS and Clerk-authenticated tokens**, your ticketing system:
-
-- Protects tenant data integrity and privacy.
-- Enables scalable multi-tenant operations without schema duplication.
-- Keeps the modular monolith architecture clean and maintainable.
-- Lays a secure foundation for onboarding thousands of tenants easily.
+| Technology       | Role in Tenant-Aware Architecture              |
+| ---------------- | ---------------------------------------------- |
+| Next.js 15.3.4   | Frontend and backend with tenant-scoped APIs   |
+| React 19.1.0     | UI rendering tenant-specific data              |
+| Clerk            | Auth and tenant-aware JWT tokens               |
+| Supabase 2.50.0  | DB with RLS, realtime tenant-filtered updates  |
+| Zustand 5.x      | Tenant-scoped frontend state management        |
+| Dexie.js 4.x     | Client cache for offline and instant data load |
+| Zod 3.x          | Input validation including tenant IDs          |
+| Tailwind CSS 4.x | Consistent UI styling                          |
 
 ---
 
-# SimpleDoc — Part 2: User Management, Authentication & Tenant-Aware Session Flow
+## 7. Setup Checklist
+
+- [ ] Add `tenant_id` to all tenant data tables.
+- [ ] Create and verify RLS policies per table.
+- [ ] Integrate Clerk to embed tenant ID in JWT tokens.
+- [ ] Enforce tenant filtering on backend APIs.
+- [ ] Manage tenant-scoped frontend state with Zustand.
+- [ ] Setup Supabase realtime subscriptions scoped by tenant.
+- [ ] Use Zod for tenant-aware validation.
 
 ---
 
-## 1. Role of Clerk in User Authentication & Tenant Binding
-
-- **Clerk** manages user sign-up, sign-in, session management, and identity verification.
-- Upon user registration or login, Clerk issues a **secure JWT token** embedding user identity data.
-- The system extends this process by associating each user with a **specific tenant** (organization).
-- This association happens during user onboarding or via admin assignment.
+# SimpleDoc — Part 2: Authentication & Tenant-Aware User Management
 
 ---
 
-## 2. Syncing Clerk Users with Tenant Data in Supabase
+## 1. Authentication with Clerk
 
-- On first user login, the backend creates or updates a corresponding record in the `users` table with fields:
-
-  - `id` (UUID primary key)
-  - `tenant_id` (UUID foreign key linking user to their tenant)
-  - `clerk_id` (Clerk’s unique user ID)
-  - `email`, `name`, `role` (e.g., user, agent, admin)
-  - `created_at`, `updated_at`
-
-- This mapping ties Clerk identities directly to tenant contexts.
-
-- All application logic then references this `tenant_id` for enforcing isolation.
+- Use **Clerk** for user sign-up, sign-in, session management, and identity.
+- Clerk issues **JWT tokens** including important claims like `user_id`, `tenant_id`, and `role`.
+- Tokens are sent with every backend request to enable tenant-aware access.
 
 ---
 
-## 3. Tenant-Aware JWT Tokens and Claims
+## 2. User-Tenant Association & Syncing
 
-- When users authenticate, the backend issues JWT tokens embedding tenant information as a claim, for example:
+- When users sign up or log in, the backend syncs Clerk user data to the Supabase `users` table.
+- Each user is linked to a specific tenant via the `tenant_id`.
+- Tenant assignment can happen during onboarding or managed by tenant admins.
+
+---
+
+## 3. Tenant-Aware JWT Tokens
+
+- Tokens include:
 
   ```json
   {
@@ -162,144 +119,101 @@ By implementing **tenant-based multi-tenancy with strict tenant isolation using 
   }
   ```
 
-- These tokens are passed to Supabase and backend services.
-
-- Supabase RLS policies read the `tenant_id` claim to filter access to tenant-specific rows automatically.
-
-- Backend APIs validate tokens and extract tenant ID to scope all queries and mutations.
+- These claims enforce tenant scoping and role-based access on backend and database.
 
 ---
 
-## 4. Authentication Flow in Next.js Frontend
+## 4. Role-Based Access Control (RBAC)
 
-- The frontend uses Clerk’s React components and hooks for UI flows:
+| Role        | Permissions                                  |
+| ----------- | -------------------------------------------- |
+| User        | Create tickets, view/respond to own tickets  |
+| Agent       | Manage tenant tickets assigned to them       |
+| Admin       | Manage users, tickets, teams in their tenant |
+| Super Admin | Full system access across tenants (optional) |
 
-  - `<SignIn />` and `<SignUp />` components for login and registration.
-  - `useUser()` hook to access current user info and session data, including tenant ID.
-
-- Upon authentication, the frontend stores tenant-aware user info in Zustand state.
-
-- Every API request or server action includes the user’s JWT token with tenant claim.
-
-- The frontend restricts UI actions and data views based on user role and tenant membership.
+- RBAC enforced both on backend and frontend UI.
 
 ---
 
-## 5. Role-Based Access Control (RBAC) with Tenant Context
+## 5. Frontend Session and State
 
-- User roles define their permissions within their tenant:
-
-  | Role           | Permissions                                          |
-  | -------------- | ---------------------------------------------------- |
-  | **User**       | Create tickets, respond to their own tickets         |
-  | **Agent**      | View & update tickets assigned to their tenant/team  |
-  | **Admin**      | Manage users & tickets, assign tickets within tenant |
-  | **SuperAdmin** | Full control across all tenants (optional)           |
-
-- Roles are stored in the `users` table and reflected in JWT claims.
-
-- UI and backend logic enforce role-based restrictions scoped by tenant.
+- Use Clerk’s React hooks (`useUser()`) to get authenticated user and tenant info.
+- Store tenant ID and user metadata in Zustand global state scoped to the session.
+- Include JWT tokens with all API calls for tenant-aware backend access.
 
 ---
 
-## 6. Tenant-Aware Session Management
+## 6. Security Considerations
 
-- Clerk manages token refresh and session expiration automatically.
-- Backend verifies JWT tokens on each request, ensuring tenant claims are valid and active.
-- If token tenant does not match requested data’s tenant, access is denied.
-- Session stores tenant ID to avoid repeated lookups, improving performance and security.
-
----
-
-## 7. Synchronizing User State and Tenant Info with Zustand
-
-- The frontend Zustand store maintains:
-
-  - Current authenticated user info (`id`, `email`, `role`, `tenant_id`).
-  - Tenant-scoped tickets and resources fetched from backend.
-
-- This store ensures components reactively update based on tenant-aware data changes.
-
-- Zustand selectors apply shallow comparison to optimize re-renders.
+- Always verify JWT signature and expiration on backend.
+- Reject requests where tenant ID in token does not match accessed data.
+- Use secure HTTPS connections and token storage.
 
 ---
 
-## 8. Security and Best Practices
+## 7. Summary Checklist
 
-- Never expose tenant IDs or sensitive claims in insecure contexts (e.g., logs).
-- Validate all user inputs with Zod schemas, including tenant-scoped identifiers.
-- Backend API endpoints enforce tenant verification on all inputs.
-- Use HTTPS everywhere and ensure Clerk tokens are securely stored and transmitted.
-
----
-
-## 9. Summary Checklist for Tenant-Aware User Management
-
-- [ ] Integrate Clerk’s authentication UI components with Next.js frontend.
-- [ ] Sync Clerk user data with Supabase `users` table, including tenant ID.
-- [ ] Issue JWT tokens embedding tenant and role claims.
-- [ ] Implement Supabase RLS policies using tenant_id claims.
-- [ ] Manage tenant and user state reactively in frontend Zustand stores.
-- [ ] Enforce role-based access control scoped to tenant boundaries.
-- [ ] Validate all API inputs with Zod to include tenant constraints.
+- [ ] Integrate Clerk authentication UI and React hooks.
+- [ ] Sync Clerk users to Supabase users table with tenant associations.
+- [ ] Issue JWT tokens embedding tenant ID and role claims.
+- [ ] Enforce RBAC scoped per tenant on backend and frontend.
+- [ ] Manage tenant-aware session state reactively with Zustand.
+- [ ] Implement strict JWT validation and tenant authorization.
 
 ---
 
-# SimpleDoc — Part 3: Tenant-Aware Ticket Data Modeling & State Management
+# SimpleDoc — Part 3: Tenant-Aware Data Modeling & State Management
 
 ---
 
-## 1. Database Schema Design with Tenant Awareness
+## 1. Database Schema with Tenant Isolation
 
-To enforce tenant isolation and support multi-tenancy, every table relevant to tickets and related data includes a `tenant_id` column (UUID), linking records to their owning tenant.
+- All tenant-specific tables include a mandatory `tenant_id` UUID field.
+- Key tables:
 
-### Key Tables and Fields:
-
-| Table          | Important Fields                                                                                                                                | Notes                                      |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| **users**      | `id`, `tenant_id`, `clerk_id`, `email`, `role`                                                                                                  | Maps Clerk users to tenants and roles      |
-| **tickets**    | `id`, `tenant_id`, `user_id`, `subject`, `description`, `priority`, `category`, `status`, `deadline`, `assigned_to`, `created_at`, `updated_at` | Ticket core data; all tenant-scoped        |
-| **responses**  | `id`, `tenant_id`, `ticket_id`, `user_id`, `message`, `created_at`                                                                              | Ticket conversation threads, tenant-scoped |
-| **audit_logs** | `id`, `tenant_id`, `ticket_id`, `user_id`, `action_type`, `old_value`, `new_value`, `timestamp`                                                 | Tracks all changes with tenant context     |
+| Table        | Tenant Column | Purpose                      |
+| ------------ | ------------- | ---------------------------- |
+| `users`      | `tenant_id`   | Associates users to tenants  |
+| `tickets`    | `tenant_id`   | Tickets owned by tenants     |
+| `responses`  | `tenant_id`   | Ticket conversation messages |
+| `audit_logs` | `tenant_id`   | Tenant-scoped audit trail    |
 
 ---
 
-## 2. Zod Schemas for Tenant-Aware Validation
+## 2. Input Validation Using Zod
 
-Use **Zod** schemas to ensure all inputs are validated and include tenant context where necessary.
-
-Example: Ticket creation schema
+- Use **Zod** schemas to validate API inputs and ensure `tenant_id` is present and valid.
+- Example ticket creation schema:
 
 ```ts
 import { z } from 'zod';
 
 export const createTicketSchema = z.object({
-  tenant_id: z.string().uuid(), // tenant must be explicitly provided and valid
+  tenant_id: z.string().uuid(),
   user_id: z.string().uuid(),
-  subject: z.string().min(5, 'Subject must be at least 5 characters'),
-  description: z.string().min(10, 'Description is required'),
+  subject: z.string().min(5),
+  description: z.string().min(10),
   priority: z.enum(['low', 'medium', 'high', 'urgent']),
   category: z.string().optional(),
 });
 ```
 
-- Always validate tenant IDs and user IDs on all inputs to prevent cross-tenant injection.
-
 ---
 
-## 3. Zustand State Management Scoped by Tenant
+## 3. Frontend State Management with Zustand
 
-### Store Structure
-
-- Maintain a global store that keeps tickets and responses filtered by the current tenant.
-
-Example state slice:
+- Zustand manages tenant-scoped global state with tenant ID, tickets, responses, and users.
+- Example setup:
 
 ```ts
-const useTicketStore = create((set) => ({
+import create from 'zustand';
+
+const useStore = create((set) => ({
   tenant_id: null,
   tickets: [],
   responses: {},
+  users: [],
   setTenant: (tenantId) => set({ tenant_id: tenantId }),
   setTickets: (tickets) => set({ tickets }),
   addResponse: (ticketId, response) =>
@@ -309,288 +223,362 @@ const useTicketStore = create((set) => ({
         [ticketId]: [...(state.responses[ticketId] || []), response],
       },
     })),
+  setUsers: (users) => set({ users }),
 }));
 ```
 
-### Benefits
+---
 
-- Ensures UI reacts only to tenant-scoped data changes.
-- Avoids accidental mixing of tickets from different tenants.
-- Allows clear state reset on tenant switch or logout.
+## 4. Dexie.js Persistent Cache
+
+- Use Dexie.js to cache tenant-scoped data locally for fast loading and offline support.
+- Cache indexed by `tenant_id` for efficient queries.
+- Sync with backend using delta updates and Supabase realtime.
 
 ---
 
-## 4. Backend Data Access with Tenant Enforcement
+## 5. Backend Data Access
 
-- All server actions and API endpoints:
-
-  - Extract `tenant_id` from the authenticated user's JWT token.
-  - Use `tenant_id` in all queries as a mandatory filter.
-  - Prevent access to data belonging to other tenants.
-
-Example SQL-like pseudo code for fetching tickets:
+- Backend queries always filter by `tenant_id` extracted from JWT claims.
+- Reject operations where token tenant does not match data tenant.
+- Example SQL:
 
 ```sql
-SELECT * FROM tickets
-WHERE tenant_id = current_user_tenant_id
-  AND (user_id = current_user_id OR assigned_to = current_user_id);
+SELECT * FROM tickets WHERE tenant_id = current_setting('request.jwt.claim.tenant_id')::uuid;
 ```
 
-- Updates and deletes similarly use tenant-aware filtering.
+---
+
+## 6. Supabase Realtime
+
+- Subscribe to realtime updates filtered by tenant ID.
+- Updates to tickets and responses push instantly to client state.
 
 ---
 
-## 5. Real-Time Updates via Supabase
+## 7. Soft Delete Strategy
 
-- Supabase real-time subscriptions listen on tables filtered by `tenant_id`.
-- Frontend subscribes to ticket and response changes **only for the current tenant**.
-- This ensures real-time sync of tenant-specific data with zero leakage.
-
----
-
-## 6. Soft Delete Support in Data Modeling
-
-- Tickets are **never hard deleted**.
-- Instead, tickets have a `status` field which can be set to `closed` to indicate soft deletion.
-- The UI filters out closed tickets from active views but retains them in the database for audit and potential restore.
-- Responses linked to tickets remain to preserve conversation history.
+- Use status flag `closed` instead of physical delete.
+- Closed tickets hidden from active UI but retained for audit and restore.
 
 ---
 
-## 7. Summary Checklist for Tenant-Aware Data Modeling
+## 8. Summary Checklist
 
-- [ ] Add `tenant_id` to all relevant tables and enforce UUID format.
-- [ ] Define Zod schemas that require and validate tenant IDs on inputs.
-- [ ] Implement Zustand stores scoped to current tenant ID.
-- [ ] Ensure backend queries always filter by authenticated user's tenant ID.
-- [ ] Use Supabase real-time subscriptions filtered by tenant.
-- [ ] Implement soft delete via status changes, not physical deletion.
-
----
-
-# SimpleDoc — Part 4: Tenant-Aware Ticket Lifecycle & Soft Delete Management
+- [ ] Add `tenant_id` columns to tenant data tables.
+- [ ] Validate inputs with Zod schemas requiring tenant ID.
+- [ ] Manage tenant-scoped frontend state with Zustand.
+- [ ] Implement Dexie.js persistent tenant-scoped cache.
+- [ ] Enforce tenant filtering in backend queries.
+- [ ] Subscribe to tenant-filtered realtime data.
+- [ ] Use soft delete via status flags.
 
 ---
 
-## 1. Ticket Status Definitions with Tenant Awareness
+# SimpleDoc — Part 4: Ticket Lifecycle & Status Management with Tenant Isolation
 
-Each ticket moves through a clearly defined lifecycle within its tenant context:
+---
 
-| Status        | Description                                                          |
-| ------------- | -------------------------------------------------------------------- |
-| **New**       | Ticket just created and awaiting assignment within tenant.           |
-| **Open**      | Actively being worked on by tenant’s support agents.                 |
-| **Pending**   | Awaiting user input or additional information from tenant users.     |
-| **Resolved**  | Support believes issue is fixed, awaiting tenant user confirmation.  |
-| **Closed**    | Ticket is finalized and archived (soft deleted), no further actions. |
-| **Escalated** | Urgent ticket requiring immediate attention within the tenant.       |
+## 1. Ticket Status Definitions
+
+Tickets have defined statuses scoped per tenant to reflect their current lifecycle:
+
+| Status        | Description                                           |
+| ------------- | ----------------------------------------------------- |
+| **New**       | Created, waiting for assignment                       |
+| **Open**      | Actively worked on by tenant support agents           |
+| **Pending**   | Waiting on tenant user input or info                  |
+| **Resolved**  | Issue fixed, awaiting tenant confirmation             |
+| **Closed**    | Finalized and archived (soft deleted)                 |
+| **Escalated** | Urgent attention needed due to SLA or priority breach |
 
 ---
 
 ## 2. Status Transitions & Business Rules
 
-- Status transitions are **always scoped to tenant data** via `tenant_id`.
-- Example flows:
+- Transitions happen only within the tenant scope.
 
-  - `New → Open` when tenant’s agent picks up the ticket.
-  - `Open → Pending` when awaiting tenant user response.
-  - `Pending → Open` when tenant user provides info.
-  - `Open → Resolved` when issue fixed.
-  - `Resolved → Closed` after tenant user confirms or timeout.
-  - Any status can move to `Escalated` due to SLA breaches.
+- Common flows:
 
----
+  - New → Open: Agent picks ticket
+  - Open → Pending: Waiting on user
+  - Pending → Open: User responds
+  - Open → Resolved: Agent marks fixed
+  - Resolved → Closed: User confirms or timeout
+  - Any → Escalated: SLA breach or urgent issue
 
-## 3. Soft Delete Implementation (Closed Tickets)
-
-- Tickets are **never physically deleted** to ensure audit and compliance.
-
-- Instead, when a tenant user or admin “deletes” a ticket, the ticket’s status is changed to `Closed`.
-
-- Tickets with status `Closed` are:
-
-  - Hidden from all active ticket views by default.
-  - Moved into a dedicated **Closed Tickets folder** or archive accessible by tenant admins.
-  - Retained in the database for audit logs, reporting, and possible restoration.
-
-- Responses linked to closed tickets remain intact for history.
+- Each change triggers tenant-aware audit logs, real-time updates, and notifications.
 
 ---
 
-## 4. Soft Delete Workflow in the Application
+## 3. Soft Delete via Closed Status
 
-- UI components show active tickets filtered with `status != Closed`.
-- Closed tickets are accessible under an “Archived Tickets” section for tenant admins and agents with permission.
-- Tenant users cannot recover closed tickets unless an admin performs a restoration action.
-- Restoration changes the ticket status from `Closed` back to a prior active status (e.g., `Open` or `Pending`).
-
----
-
-## 5. Tenant-Aware Audit Logging for Lifecycle Changes
-
-- Every status change, including soft delete (close), is recorded in `audit_logs` with tenant context:
-
-| Field         | Description                             |
-| ------------- | --------------------------------------- |
-| `tenant_id`   | Tenant owning the ticket                |
-| `ticket_id`   | Ticket affected                         |
-| `user_id`     | User who made the change                |
-| `action_type` | Example: "status_change", "soft_delete" |
-| `old_value`   | Previous status                         |
-| `new_value`   | New status (`Closed` for soft delete)   |
-| `timestamp`   | When the change occurred                |
-
-- Audit logs provide full traceability within tenant boundaries.
+- Tickets are soft deleted by changing status to `Closed`.
+- Closed tickets are hidden from active views but kept for audits and possible restoration.
+- Restoration changes status back to active.
 
 ---
 
-## 6. Automation & SLA Enforcement
+## 4. Tenant-Aware Audit Logging
 
-- Scheduled jobs (e.g., Supabase Edge Functions) run tenant-aware checks for SLA deadlines.
-- Tickets overdue for response or resolution trigger status escalations within their tenant.
-- These escalations respect tenant boundaries and notify only relevant tenant users.
-
----
-
-## 7. Security Considerations
-
-- All lifecycle transitions and soft delete operations verify tenant ownership before proceeding.
-- Backend APIs reject any operation where the authenticated user's tenant does not match the ticket’s tenant.
-- UI components enforce role and tenant-based permissions for visibility and actions.
+- Logs every status change with tenant, ticket, user, old and new status, and timestamp.
+- Provides traceability scoped per tenant.
 
 ---
 
-## 8. Summary Checklist for Ticket Lifecycle & Soft Delete
+## 5. SLA Enforcement & Escalations
 
-- [ ] Define ticket statuses including `Closed` for soft delete.
-- [ ] Implement status transitions scoped to tenant data (`tenant_id`).
-- [ ] Soft delete tickets by setting status to `Closed`, not physical deletion.
-- [ ] Provide UI views for active vs. archived tickets per tenant.
-- [ ] Log all status changes including soft deletes in tenant-aware audit logs.
-- [ ] Automate SLA-based escalations respecting tenant boundaries.
-- [ ] Enforce tenant ownership checks on all lifecycle operations.
+- Scheduled jobs check SLA deadlines tenant-wise.
+- Overdue tickets escalate priority/status.
+- Notifications sent to tenant users.
+- Escalations recorded in audit logs.
 
 ---
 
-# SimpleDoc — Part 5: Tenant-Aware State Management, API Design & Security
+## 6. Role & Permission Controls
+
+- Only authorized tenant users (agents, admins) can update ticket statuses.
+- Backend validates tenant and role before allowing changes.
 
 ---
 
-## 1. Frontend State Management with Tenant Context
+## 7. Frontend UI Considerations
 
-- Use **Zustand** for global state, carefully scoped to the authenticated user's **tenant_id**.
-- The store holds tenant-specific data such as tickets, responses, user info, and UI state.
-- Example structure:
-
-```ts
-const useTenantStore = create((set) => ({
-  tenant_id: null,
-  currentUser: null,
-  tickets: [],
-  setTenant: (tenantId) => set({ tenant_id: tenantId }),
-  setCurrentUser: (user) => set({ currentUser: user }),
-  setTickets: (tickets) => set({ tickets }),
-  clearState: () => set({ tenant_id: null, currentUser: null, tickets: [] }),
-}));
-```
-
-- This ensures the UI reacts only to the tenant’s data, preventing cross-tenant data mix-up.
+- Group tickets by status with badges.
+- Show actions based on role and tenant.
+- Reflect real-time lifecycle changes instantly.
 
 ---
 
-## 2. API and Server Actions Design
+## 8. Summary Checklist
 
-- All API endpoints and Next.js server actions must:
-
-  - Extract the tenant ID from the authenticated user's JWT token.
-  - Use tenant ID as a **mandatory filter** on all database queries and mutations.
-  - Reject requests if tenant ID in token and request payload do not match.
-  - Use Zod schemas for validating all inputs, including tenant IDs and UUIDs.
-
-- Typical API responsibilities include:
-
-  - Creating tickets scoped to tenant.
-  - Updating ticket statuses and priorities.
-  - Adding responses to tickets.
-  - Fetching tickets and related data filtered by tenant.
-  - Handling soft deletes (marking tickets as closed).
+- [ ] Define tenant-scoped ticket statuses.
+- [ ] Enforce status transitions within tenant scope.
+- [ ] Implement soft delete using status flags.
+- [ ] Log lifecycle changes with tenant context.
+- [ ] Automate SLA escalations tenant-wise.
+- [ ] Enforce role-based permissions per tenant.
 
 ---
 
-## 3. Supabase Row Level Security (RLS) Enforcement
-
-- Supabase enforces tenant isolation via RLS policies on every relevant table.
-- Example RLS policy for `tickets` table:
-
-```sql
-CREATE POLICY tenant_isolation ON tickets
-  USING (tenant_id = current_setting('request.jwt.claim.tenant_id')::uuid);
-```
-
-- JWT tokens must include `tenant_id` as a claim, used by RLS to filter accessible rows.
-- This setup prevents any query or mutation that tries to access data outside the tenant scope.
+# SimpleDoc — Part 5: Priority, Deadlines & Escalations with Tenant Isolation
 
 ---
 
-## 4. Security Best Practices
+## 1. Priority Levels
 
-- Verify all incoming requests to ensure:
+Each ticket has a priority level scoped per tenant indicating urgency:
 
-  - Valid and unexpired JWT tokens.
-  - The tenant ID in JWT matches the tenant ID in the request context.
-  - User roles permit the requested action within the tenant.
-
-- Protect sensitive endpoints with role-based checks (e.g., only admins can close tickets or view audit logs).
-
-- Use HTTPS exclusively to secure token transmission.
-
-- Avoid exposing tenant IDs or sensitive claims in logs or error messages.
+| Priority   | Description                               |
+| ---------- | ----------------------------------------- |
+| **Low**    | Minor issues; longer resolution time okay |
+| **Medium** | Standard priority with typical SLA        |
+| **High**   | Requires quicker response                 |
+| **Urgent** | Critical issues needing immediate action  |
 
 ---
 
-## 5. Input Validation with Zod
+## 2. Setting Priorities
 
-- Use Zod schemas extensively to:
-
-  - Validate ticket creation/update payloads.
-  - Confirm tenant IDs, user IDs, and ticket IDs are valid UUIDs.
-  - Enforce required fields and correct data types.
-
-- Example schema for ticket update:
-
-```ts
-const updateTicketSchema = z.object({
-  tenant_id: z.string().uuid(),
-  ticket_id: z.string().uuid(),
-  status: z.enum(['new', 'open', 'pending', 'resolved', 'closed', 'escalated']),
-  priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
-  assigned_to: z.string().uuid().nullable().optional(),
-});
-```
-
-- This prevents invalid or malicious data from entering the system.
+- Users select priority when creating tickets.
+- Tenant agents and admins can override priority.
+- Default priority (usually Medium) is assigned if none specified.
 
 ---
 
-## 6. Error Handling and Monitoring
+## 3. Deadlines and SLAs
 
-- Implement centralized error handling to:
+- Each priority corresponds to a tenant-specific SLA deadline:
 
-  - Capture and log unexpected errors with tenant context.
-  - Return sanitized, user-friendly error messages without leaking internal details.
+| Priority | SLA Deadline |
+| -------- | ------------ |
+| Urgent   | 4 hours      |
+| High     | 1 day        |
+| Medium   | 3 days       |
+| Low      | 7 days       |
 
-- Monitor API usage, failed requests, and unusual patterns per tenant to detect abuse or issues.
-
-- Audit logs include errors affecting ticket lifecycle or user access.
+- Deadlines are set on ticket creation or priority change.
 
 ---
 
-## 7. Summary Checklist for State, API & Security
+## 4. Automatic Priority Escalation
 
-- [ ] Use Zustand to hold tenant-scoped frontend state.
-- [ ] Design API and server actions that require tenant ID and validate it on every call.
-- [ ] Implement strict Supabase RLS policies filtering by tenant ID from JWT claims.
-- [ ] Validate all inputs with Zod, including tenant-scoped UUIDs.
-- [ ] Enforce role-based access control in backend.
-- [ ] Use HTTPS and secure token storage/transmission.
-- [ ] Centralize error handling with tenant-aware logging and monitoring.
+- Tenant-scoped backend jobs (e.g., Supabase Edge Functions) check tickets past deadlines.
+- Overdue tickets automatically escalate priority by one level.
+- Deadlines reset based on new priority.
+- Notifications sent to tenant users.
+- All escalations logged with tenant context.
+
+---
+
+## 5. Manual Priority Management
+
+- Tenant agents/admins can manually update priorities.
+- Manual changes reset deadlines.
+- Changes are logged tenant-wise.
+
+---
+
+## 6. UI & Workflow Impact
+
+- Tickets sortable and filterable by priority and deadline.
+- Visual badges and countdowns help prioritization.
+- Alerts keep teams proactive.
+
+---
+
+## 7. Tenant-Aware Audit Logging
+
+- All priority and deadline changes logged with tenant ID, user, old/new values, and timestamps.
+
+---
+
+## 8. Summary Checklist
+
+- [ ] Define tenant-scoped priority levels and SLAs.
+- [ ] Implement automatic priority escalation tenant-wise.
+- [ ] Enable manual priority updates with audit logging.
+- [ ] Reflect priorities and escalations clearly in tenant UIs.
+- [ ] Ensure notifications target tenant-specific users.
+
+---
+
+# SimpleDoc — Part 6: Roles, Teams, Auditing & Monitoring with Tenant Isolation
+
+---
+
+## 1. User Roles and Permissions
+
+- Define roles scoped per tenant that control user capabilities:
+
+| Role              | Permissions                                                    |
+| ----------------- | -------------------------------------------------------------- |
+| **User**          | Create tickets, view/respond to own tickets only               |
+| **Support Agent** | Manage tickets assigned to their tenant/team                   |
+| **Admin**         | Manage users, teams, tickets, and settings within their tenant |
+| **Super Admin**   | (Optional) Full system-wide access across tenants              |
+
+- Roles are stored in the `users` table with tenant linkage.
+- Enforcement happens both backend (API and RLS) and frontend (UI restrictions).
+
+---
+
+## 2. Team Management
+
+- Agents grouped into tenant-scoped teams (e.g., Support, Sales).
+- Teams have `tenant_id` to ensure isolation.
+- Tickets assigned to users or teams within tenant.
+- Admins assign or reassign tickets within tenant boundaries.
+
+---
+
+## 3. Audit Logging
+
+- Tenant-scoped audit logs track critical actions:
+
+  - Ticket status and priority changes
+  - User and role management
+  - Ticket assignments
+
+- Logs include tenant ID, user ID, action details, old/new values, timestamps.
+
+---
+
+## 4. Monitoring and Dashboards
+
+- Tenant admins and super admins see dashboards with:
+
+  - Ticket volumes and status
+  - SLA compliance and escalations
+  - Assignment and resolution metrics
+  - Audit log summaries filtered by tenant
+
+---
+
+## 5. Optional Approval Workflows
+
+- Tenant-scoped workflows for sensitive actions (e.g., priority escalations):
+
+  - Agents submit requests.
+  - Tenant admins review and approve/reject.
+  - All actions logged.
+
+---
+
+## 6. Integration with Clerk and Supabase
+
+- Clerk manages tenant-aware roles and groups.
+- Supabase RLS enforces tenant and role-based access.
+- Sync ensures role info is consistent and up-to-date.
+
+---
+
+## 7. Summary Checklist
+
+- [ ] Define tenant-scoped user roles and permissions.
+- [ ] Model tenant teams and manage ticket assignments accordingly.
+- [ ] Maintain tenant-aware audit logs for critical actions.
+- [ ] Build tenant-specific monitoring dashboards.
+- [ ] Optionally implement tenant-scoped approval workflows.
+- [ ] Sync Clerk roles/groups with Supabase access controls.
+
+---
+
+# SimpleDoc — Part 7: Final Wrap-up and Best Practices
+
+---
+
+## 1. Summary of Tenant-Aware Architecture
+
+- The system is a **modular monolith** supporting secure multi-tenancy.
+- Tenant isolation is enforced at all layers: frontend, backend, DB (Supabase RLS), and auth (Clerk JWT claims).
+- Hybrid client caching (Dexie.js), realtime updates (Supabase realtime), and optimistic UI (Zustand) deliver fast, scalable, responsive experience.
+- Soft deletes ensure data integrity and auditability.
+- RBAC and team management control access and permissions.
+- Audit logs and dashboards provide tenant-specific visibility and compliance.
+
+---
+
+## 2. Best Practices
+
+- **Tenant Isolation:** Always filter queries and state by `tenant_id`.
+- **Security:** Validate inputs (Zod), enforce JWT verification, use HTTPS.
+- **Data Integrity:** Use soft deletes, maintain audit logs.
+- **Performance:** Use indexed tenant_id columns, Dexie caching, realtime sync.
+- **Monitoring:** Set up tenant-scoped dashboards and alerts.
+
+---
+
+## 3. Operational Considerations
+
+- Monitor SLA compliance and tenant activity.
+- Regularly audit access controls and tenant boundaries.
+- Prepare onboarding workflows and scaling plans.
+
+---
+
+## 4. Developer Collaboration
+
+- Maintain clear tenant boundaries in code.
+- Use consistent tenant scoping patterns.
+- Automate tenant-aware testing.
+
+---
+
+## 5. Future Enhancements
+
+- Tenant feature flags and configs.
+- Advanced approval workflows.
+- AI and automation modules.
+- Modular microservices for scale.
+
+---
+
+## 6. Final Checklist
+
+- [ ] Confirm tenant isolation in all layers.
+- [ ] Validate roles and permissions tenant-wise.
+- [ ] Test onboarding and user sync.
+- [ ] Ensure audit logging is complete.
+- [ ] Conduct security audits.
+- [ ] Set up monitoring and alerting per tenant.
