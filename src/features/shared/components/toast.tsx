@@ -2,63 +2,94 @@
 
 import { toast as sonnerToast } from 'sonner';
 
-interface ToastOptions {
-  description?: string;
+// Base styles for all toasts - minimal to avoid interfering with Sonner positioning
+const baseToastStyle: React.CSSProperties = {};
+
+/**
+ * Extended toast options for structured notifications
+ */
+interface StructuredToastOptions {
+  id?: string | number;
+  description?: string | undefined;
   duration?: number;
+  style?: React.CSSProperties;
 }
 
-const customStyles = {
-  success: {
-    background: 'hsl(142.1 76.2% 36.3%)', // Custom success green
-    color: 'hsl(355.7 100% 97.3%)', // White text
-    border: '1px solid hsl(142.1 76.2% 36.3%)',
-  },
-  error: {
-    background: 'hsl(0 84.2% 60.2%)', // Custom error red
-    color: 'hsl(355.7 100% 97.3%)', // White text
-    border: '1px solid hsl(0 84.2% 60.2%)',
-  },
-  info: {
-    background: 'hsl(221.2 83.2% 53.3%)', // Custom info blue
-    color: 'hsl(355.7 100% 97.3%)', // White text
-    border: '1px solid hsl(221.2 83.2% 53.3%)',
-  },
-  loading: {
-    background: 'hsl(47.9 95.8% 53.1%)', // Custom loading yellow
-    color: 'hsl(222.2 84% 4.9%)', // Dark text
-    border: '1px solid hsl(47.9 95.8% 53.1%)',
-  },
-};
-
+/**
+ * Custom toast functions with consistent styling
+ */
 export const toast = {
-  success: (title: string, options?: ToastOptions) =>
-    sonnerToast.success(title, {
+  /**
+   * Show a success toast notification
+   * @param title - The main message or title
+   * @param options - Additional options including description for structured notifications
+   */
+  success: (title: string, options?: StructuredToastOptions) => {
+    return sonnerToast.success(title, {
       duration: 4000,
-      style: customStyles.success,
+      className: 'custom-toast custom-toast-success',
+      style: {
+        ...baseToastStyle,
+      },
+      closeButton: false,
       ...options,
-    }),
+    });
+  },
 
-  error: (title: string, options?: ToastOptions) =>
-    sonnerToast.error(title, {
+  /**
+   * Show an error toast notification
+   * @param title - The main message or title
+   * @param options - Additional options including description for structured notifications
+   */
+  error: (title: string, options?: StructuredToastOptions) => {
+    return sonnerToast.error(title, {
       duration: 4000,
-      style: customStyles.error,
+      className: 'custom-toast custom-toast-error',
+      style: {
+        ...baseToastStyle,
+      },
+      closeButton: false,
       ...options,
-    }),
+    });
+  },
 
-  loading: (title: string, options?: ToastOptions) =>
-    sonnerToast.loading(title, {
+  /**
+   * Show a loading toast notification
+   * @param title - The main message or title
+   * @param options - Additional options including description for structured notifications
+   */
+  loading: (title: string, options?: StructuredToastOptions) => {
+    return sonnerToast.loading(title, {
       duration: 10000,
-      style: customStyles.loading,
+      className: 'custom-toast custom-toast-loading',
+      style: {
+        ...baseToastStyle,
+      },
+      closeButton: false,
       ...options,
-    }),
+    });
+  },
 
-  info: (title: string, options?: ToastOptions) =>
-    sonnerToast(title, {
+  /**
+   * Show an info toast notification
+   * @param title - The main message or title
+   * @param options - Additional options including description for structured notifications
+   */
+  info: (title: string, options?: StructuredToastOptions) => {
+    return sonnerToast(title, {
       duration: 4000,
-      style: customStyles.info,
+      className: 'custom-toast custom-toast-info',
+      style: {
+        ...baseToastStyle,
+      },
+      closeButton: false,
       ...options,
-    }),
+    });
+  },
 
+  /**
+   * Dismiss a toast by its ID
+   */
   dismiss: sonnerToast.dismiss,
 };
 
