@@ -10,6 +10,37 @@ Stop-Process -Id $conn.OwningProcess -Force
 
 ---
 
+I need you to conduct a comprehensive analysis of my domain-base modular monolithic architecture ticketing system project by following these specific steps:
+
+1. **Project Blueprint Analysis**: First, examine all files in the `Docs\BluePrint` folder to understand the project's architecture, design specifications, and intended functionality.
+
+2. **Progress Review**: Next, review all files in the `Docs\Progress` folder to understand what has been implemented so far, what's working, and what still needs to be done.
+
+3. **Codebase Analysis**: Then, perform a thorough examination of all files in the workspace to understand:
+
+   - Current implementation status
+   - Code structure and organization
+   - Technologies being used
+   - Any existing issues or incomplete features
+
+4. **Database State Check**: Use the Supabase MCP connection to inspect:
+
+   - Current database schema and tables
+   - Existing data and relationships
+   - Authentication configuration
+   - Any database-related issues or inconsistencies
+
+5. **Comprehensive Summary**: Finally, provide a detailed summary that includes:
+   - Current project status and what's been accomplished
+   - Identified gaps between the blueprint and current implementation
+   - Database state and any issues found
+   - Recommended next steps or priorities
+   - Any technical concerns or blockers discovered
+
+Please be thorough in your analysis and provide specific details about what you find in each area.
+
+---
+
 ### ✅ Correct command (using commit hash):
 
 ```bash
