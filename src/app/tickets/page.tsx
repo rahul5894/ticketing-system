@@ -17,11 +17,7 @@ import { getDomainFromWindow, DomainInfoState } from '@/lib/domain';
 import { usePermissions } from '@/features/shared/hooks/useAuth';
 import { useTicketRealtime } from '@/features/ticketing/hooks/useTicketRealtime';
 import { useClerkSupabaseSync } from '@/hooks/useClerkSupabaseSync';
-import {
-  SyncStatusIndicator,
-  SyncDebugInfo,
-} from '../../features/shared/components/SyncStatusIndicator';
-import { AuthErrorBoundary } from '@/features/shared/components/AuthErrorBoundary';
+
 import { AuthLoadingState } from '@/features/shared/components/AuthLoadingState';
 import {
   Dialog,
@@ -54,9 +50,8 @@ function TicketsPageContent() {
   const [showDraftConfirmation, setShowDraftConfirmation] = useState(false);
   const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
 
-  // Set up Clerk-Supabase synchronization with modern auth state management
-  const { syncStatus, syncData, triggerSync, authState, isAuthReady } =
-    useClerkSupabaseSync(tenantId);
+  // Set up Clerk-Supabase synchronization
+  useClerkSupabaseSync(tenantId);
 
   // Set up real-time subscriptions for ticket updates
   useTicketRealtime(tenantId, !useMockData && !!user);
@@ -76,17 +71,12 @@ function TicketsPageContent() {
     }
   }, [domainInfo, setTenantId]);
 
-  // Show loading while authentication is being checked or transitioning
-  if (!isLoaded || !isAuthReady || authState.isTransitioning) {
+  // Show loading while authentication is being checked
+  if (!isLoaded) {
     return (
       <AuthLoadingState
         isLoading={!isLoaded}
-        isTransitioning={authState.isTransitioning}
-        message={
-          authState.isTransitioning
-            ? 'Authenticating...'
-            : 'Loading your workspace...'
-        }
+        message='Loading your workspace...'
       >
         <div />
       </AuthLoadingState>
@@ -241,22 +231,6 @@ function TicketsPageContent() {
       <div className='flex h-full'>
         {/* Recent Tickets Sidebar */}
         <div className='w-96 shrink-0 h-full flex flex-col'>
-          {/* Sync Status Indicator */}
-          <div className='p-4 border-b border-gray-200 dark:border-gray-700 hidden'>
-            <SyncStatusIndicator
-              syncStatus={syncStatus}
-              onRetry={triggerSync}
-            />
-            {/* Debug info for development - hidden since sync is working properly */}
-            {process.env.NODE_ENV === 'development' && false && (
-              <SyncDebugInfo
-                syncStatus={syncStatus}
-                syncData={syncData}
-                show={true}
-              />
-            )}
-          </div>
-
           <div className='flex-1'>
             <RecentTickets
               selectedTicketId={selectedTicketId}
@@ -322,10 +296,8 @@ function TicketsPageContent() {
 
 export default function TicketsPage() {
   return (
-    <AuthErrorBoundary>
-      <TenantProvider>
-        <TicketsPageContent />
-      </TenantProvider>
-    </AuthErrorBoundary>
+    <TenantProvider>
+      <TicketsPageContent />
+    </TenantProvider>
   );
 }

@@ -41,12 +41,7 @@ export class ClerkSupabaseSync {
   private supabase;
 
   constructor(authToken: string) {
-    console.log(
-      'Initializing ClerkSupabaseSync with token:',
-      authToken ? 'present' : 'missing'
-    );
     this.supabase = createServerSupabaseClient(authToken);
-    console.log('Supabase client initialized');
   }
 
   /**
@@ -56,8 +51,6 @@ export class ClerkSupabaseSync {
     organization: ClerkOrganization
   ): Promise<Database['public']['Tables']['tenants']['Row']> {
     try {
-      console.log('Syncing tenant:', organization.slug);
-
       // Check if tenant already exists (use service client to bypass RLS)
       const serviceClientCheck = createServiceSupabaseClient();
       const { data: existingTenant } = await serviceClientCheck
@@ -67,7 +60,6 @@ export class ClerkSupabaseSync {
         .single();
 
       if (existingTenant) {
-        console.log('Tenant already exists:', existingTenant);
         return existingTenant;
       }
 
@@ -97,10 +89,8 @@ export class ClerkSupabaseSync {
         throw new Error(`Failed to create tenant: ${error.message}`);
       }
 
-      console.log('Tenant created successfully:', newTenant);
       return newTenant;
     } catch (error) {
-      console.error('Error syncing tenant:', error);
       throw error;
     }
   }
@@ -113,8 +103,6 @@ export class ClerkSupabaseSync {
     tenant: Database['public']['Tables']['tenants']['Row']
   ): Promise<Database['public']['Tables']['users']['Row']> {
     try {
-      console.log('Syncing user:', user.id, 'to tenant:', tenant.id);
-
       // Check if user already exists
       const { data: existingUser } = await this.supabase
         .from('users')
@@ -124,8 +112,6 @@ export class ClerkSupabaseSync {
 
       // Map Clerk organization roles to Supabase roles
       const clerkRole = user.publicMetadata?.role as string;
-      console.log('🔍 Raw Clerk role from metadata:', clerkRole);
-      console.log('🔍 Full user publicMetadata:', user.publicMetadata);
 
       // Comprehensive Clerk role mapping to Supabase roles based on Clerk organization role keys
       const roleMapping: Record<string, string> = {
@@ -154,10 +140,6 @@ export class ClerkSupabaseSync {
       const validRoles = ['user', 'agent', 'admin', 'super_admin'];
       const userRole = validRoles.includes(mappedRole) ? mappedRole : 'user';
 
-      console.log('🎯 Clerk role:', clerkRole);
-      console.log('🎯 Mapped role:', mappedRole);
-      console.log('🎯 Final validated role:', userRole);
-
       const userData: User = {
         clerk_id: user.id,
         email: user.primaryEmailAddress?.emailAddress || '',
@@ -185,7 +167,6 @@ export class ClerkSupabaseSync {
           throw new Error(`Failed to update user: ${error.message}`);
         }
 
-        console.log('User updated successfully:', updatedUser);
         return updatedUser;
       } else {
         // Create new user
@@ -205,11 +186,9 @@ export class ClerkSupabaseSync {
           throw new Error(`Failed to create user: ${error.message}`);
         }
 
-        console.log('User created successfully:', newUser);
         return newUser;
       }
     } catch (error) {
-      console.error('Error syncing user:', error);
       throw error;
     }
   }
@@ -226,14 +205,11 @@ export class ClerkSupabaseSync {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(`Attempt ${attempt}/${maxRetries}`);
         return await operation();
       } catch (error) {
         lastError = error instanceof Error ? error : new Error('Unknown error');
-        console.warn(`Attempt ${attempt} failed:`, lastError.message);
 
         if (attempt < maxRetries) {
-          console.log(`Retrying in ${delay}ms...`);
           await new Promise((resolve) => setTimeout(resolve, delay));
           delay *= 2; // Exponential backoff
         }
@@ -251,13 +227,6 @@ export class ClerkSupabaseSync {
     organization: ClerkOrganization
   ): Promise<SyncResult> {
     try {
-      console.log(
-        'Starting sync for user:',
-        user.id,
-        'organization:',
-        organization.slug
-      );
-
       // Sync tenant first with retry
       const tenant = await this.retryOperation(
         () => this.syncTenant(organization),
@@ -272,14 +241,12 @@ export class ClerkSupabaseSync {
         1000
       );
 
-      console.log('Sync completed successfully');
       return {
         success: true,
         tenant,
         user: syncedUser,
       };
     } catch (error) {
-      console.error('Sync failed after all retries:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown sync error',
@@ -299,8 +266,6 @@ export class ClerkSupabaseSync {
     userExists: boolean;
   }> {
     try {
-      console.log('Checking sync status in service for:', { userId, tenantId });
-
       // Use service client to check tenant existence (bypasses RLS)
       const serviceClient = createServiceSupabaseClient();
 
@@ -317,23 +282,16 @@ export class ClerkSupabaseSync {
           .single(),
       ]);
 
-      console.log('Tenant check result:', tenantResult);
-      console.log('User check result:', userResult);
-
       const tenantExists = !tenantResult.error;
       const userExists = !userResult.error;
       const needsSync = !tenantExists || !userExists;
 
-      const result = {
+      return {
         needsSync,
         tenantExists,
         userExists,
       };
-
-      console.log('Sync status result:', result);
-      return result;
-    } catch (error) {
-      console.error('Error checking sync status:', error);
+    } catch {
       return {
         needsSync: true,
         tenantExists: false,
@@ -342,4 +300,3 @@ export class ClerkSupabaseSync {
     }
   }
 }
-

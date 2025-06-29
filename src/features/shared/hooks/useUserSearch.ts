@@ -66,7 +66,6 @@ export function useUserSearch(
           err instanceof Error ? err.message : 'An error occurred';
         setError(errorMessage);
         setUsers([]);
-        console.error('Error searching users:', err);
       } finally {
         setIsLoading(false);
       }
@@ -106,26 +105,20 @@ export function useUserDetails(userIds: string[]) {
     setError(null);
 
     try {
-      // For now, we'll search for each user individually
-      // In a production app, you'd want a batch endpoint
       const userPromises = ids.map(async (id) => {
         const response = await fetch(`/api/users/search?q=${id}&limit=1`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch user details');
-        }
+        if (!response.ok) throw new Error('Failed to fetch user details');
         const data = await response.json();
         return data.users.find((u: User) => u.id === id);
       });
 
       const userResults = await Promise.all(userPromises);
-      const validUsers = userResults.filter(Boolean) as User[];
-      setUsers(validUsers);
+      setUsers(userResults.filter(Boolean) as User[]);
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : 'An error occurred';
       setError(errorMessage);
       setUsers([]);
-      console.error('Error loading user details:', err);
     } finally {
       setIsLoading(false);
     }

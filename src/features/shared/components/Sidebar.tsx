@@ -10,7 +10,7 @@ import {
   TooltipTrigger,
 } from '@/features/shared/components/ui/tooltip';
 import { useTheme } from './ThemeProvider';
-import { useSmoothAuth } from '@/hooks/use-smooth-auth';
+import { useAuth } from '@/features/shared/hooks/useAuth';
 import {
   ChevronRight,
   Search,
@@ -47,7 +47,7 @@ const bottomNavigationItems = [
 
 export function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const { theme, setTheme } = useTheme();
-  const { signOut } = useSmoothAuth();
+  const { signOut } = useAuth();
   const [isHovered, setIsHovered] = useState(false);
 
   const toggleTheme = () => {

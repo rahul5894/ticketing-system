@@ -91,42 +91,27 @@ export const useTicketingStore = create<TicketingState>((set, get) => ({
     set({ isLoading: true });
 
     try {
-      console.log('🎫 Loading tickets from API for tenant:', tenantId);
-
-      // Add a small delay to ensure authentication is settled
       await new Promise((resolve) => setTimeout(resolve, 200));
 
       const response = await fetch(
         `/api/tickets?tenant_id=${encodeURIComponent(tenantId)}`,
         {
-          // Add timeout and proper headers
-          signal: AbortSignal.timeout(8000), // 8 second timeout
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          signal: AbortSignal.timeout(8000),
+          headers: { 'Content-Type': 'application/json' },
         }
       );
 
       if (!response.ok) {
-        let errorMessage = `HTTP ${response.status}`;
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.error || errorMessage;
-        } catch {
-          errorMessage = response.statusText || errorMessage;
-        }
-        console.error('🚨 Tickets API error:', errorMessage);
-        throw new Error(`Failed to fetch tickets: ${errorMessage}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          `Failed to fetch tickets: ${errorData.error || response.statusText}`
+        );
       }
 
       const tickets = await response.json();
-      console.log('✅ Tickets loaded successfully:', tickets.length, 'tickets');
       set({ tickets, isLoading: false });
     } catch (error) {
-      console.error('❌ Failed to load tickets:', error);
       set({ isLoading: false });
-
-      // Re-throw the error so calling code can handle it
       throw error;
     }
   },

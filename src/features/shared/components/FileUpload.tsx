@@ -8,7 +8,7 @@ import {
   useEffect,
   useMemo,
 } from 'react';
-import { useRichTextEditorVisibility } from '../hooks/useRichTextEditorVisibility';
+import { usePathname } from 'next/navigation';
 import { Button } from '@/features/shared/components/ui/button';
 import { cn } from '@/lib/utils';
 import { toast } from './toast';
@@ -55,8 +55,10 @@ export function FileUpload({
     console.debug('Drag counter:', dragCounter);
   }
 
-  // Check if drag & drop should be enabled based on page and RichTextEditor visibility
-  const { shouldEnableDragDrop } = useRichTextEditorVisibility();
+  // Simple pathname check for drag & drop enablement
+  const pathname = usePathname();
+  const shouldEnableDragDrop =
+    pathname === '/tickets' || pathname.startsWith('/tickets/');
 
   const allowedExtensions = useMemo(
     () => ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'doc', 'docx', 'txt'],
@@ -128,12 +130,12 @@ export function FileUpload({
         // Show toast notification for errors
         if (errors.length === 1) {
           toast.error('File Upload Error', {
-            description: errors[0],
+            description: errors[0] || 'Unknown error occurred',
             duration: 5000,
           });
         } else {
           toast.error('Multiple File Upload Errors', {
-            description: `${errors.length} files could not be uploaded. Check console for details.`,
+            description: `${errors.length} files could not be uploaded.`,
             duration: 6000,
           });
         }

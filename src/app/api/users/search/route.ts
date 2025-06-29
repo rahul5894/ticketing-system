@@ -1,115 +1,84 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { createServerSupabaseClient } from '@/lib/supabase-server';
+import { createServiceSupabaseClient } from '@/lib/supabase-server';
 
 export async function GET(request: NextRequest) {
-  try {
-    // Get the authenticated user from Clerk
-    const { userId, getToken } = await auth();
+  const { userId } = await auth();
+  if (!userId)
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+  const { searchParams } = new URL(request.url);
+  const query = searchParams.get('q') || '';
+  const roles = searchParams.getAll('role');
+  const limit = Math.min(parseInt(searchParams.get('limit') || '10'), 50);
 
-    // Get the Clerk session token for Supabase
-    const token = await getToken();
+  // Use service client for user lookup to bypass RLS
+  const serviceClient = createServiceSupabaseClient();
+  const { data: currentUserData, error: userError } = await serviceClient
+    .from('users')
+    .select('tenant_id')
+    .eq('clerk_id', userId);
 
-    if (!token) {
-      return NextResponse.json(
-        { error: 'No authentication token available' },
-        { status: 401 }
+  if (userError || !currentUserData || currentUserData.length === 0) {
+    return NextResponse.json(
+      { error: 'User not found in database' },
+      { status: 404 }
+    );
+  }
+
+  const currentUser = currentUserData[0];
+  if (!currentUser) {
+    return NextResponse.json(
+      { error: 'User not found in database' },
+      { status: 404 }
+    );
+  }
+
+  // Use service client for user search to bypass RLS
+  let usersQuery = serviceClient
+    .from('users')
+    .select('id, email, first_name, last_name, role, status')
+    .eq('tenant_id', currentUser.tenant_id)
+    .eq('status', 'active')
+    .limit(limit);
+
+  if (query.trim()) {
+    const isUUID =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        query
       );
-    }
+    usersQuery = isUUID
+      ? usersQuery.eq('id', query)
+      : usersQuery.or(
+          `email.ilike.%${query}%,first_name.ilike.%${query}%,last_name.ilike.%${query}%`
+        );
+  }
 
-    // Parse query parameters
-    const { searchParams } = new URL(request.url);
-    const query = searchParams.get('q') || '';
-    const roles = searchParams.getAll('role'); // Support multiple role filters
-    const limit = parseInt(searchParams.get('limit') || '10');
-
-    // Validate limit
-    if (limit > 50) {
+  if (roles.length > 0) {
+    const validRoles = ['user', 'agent', 'admin', 'super_admin'];
+    const invalidRoles = roles.filter((role) => !validRoles.includes(role));
+    if (invalidRoles.length > 0) {
       return NextResponse.json(
-        { error: 'Limit cannot exceed 50' },
+        { error: `Invalid roles: ${invalidRoles.join(', ')}` },
         { status: 400 }
       );
     }
+    usersQuery =
+      roles.length === 1
+        ? usersQuery.eq('role', roles[0]!)
+        : usersQuery.in('role', roles);
+  }
 
-    // Create Supabase client with authentication
-    const supabase = createServerSupabaseClient(token);
+  const { data: users, error } = await usersQuery.order('email');
 
-    // Get current user's tenant_id for isolation
-    const { data: currentUser, error: userError } = await supabase
-      .from('users')
-      .select('tenant_id, role')
-      .eq('clerk_id', userId)
-      .single();
+  if (error)
+    return NextResponse.json(
+      { error: 'Failed to search users' },
+      { status: 500 }
+    );
 
-    if (userError || !currentUser) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-
-    // Build the query with tenant isolation
-    let usersQuery = supabase
-      .from('users')
-      .select('id, email, first_name, last_name, role, status')
-      .eq('tenant_id', currentUser.tenant_id)
-      .eq('status', 'active') // Only active users
-      .limit(limit);
-
-    // Add search filter if query provided
-    if (query.trim()) {
-      // Check if query looks like a UUID (for exact ID matches)
-      const isUUID =
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-          query
-        );
-
-      if (isUUID) {
-        // Exact ID match for UUIDs
-        usersQuery = usersQuery.eq('id', query);
-      } else {
-        // Search in email, first_name, and last_name for non-UUID queries
-        usersQuery = usersQuery.or(
-          `email.ilike.%${query}%,first_name.ilike.%${query}%,last_name.ilike.%${query}%`
-        );
-      }
-    }
-
-    // Add role filter if specified
-    if (roles.length > 0) {
-      // Validate roles
-      const validRoles = ['user', 'agent', 'admin', 'super_admin'];
-      const invalidRoles = roles.filter((role) => !validRoles.includes(role));
-      if (invalidRoles.length > 0) {
-        return NextResponse.json(
-          { error: `Invalid role filter(s): ${invalidRoles.join(', ')}` },
-          { status: 400 }
-        );
-      }
-
-      if (roles.length === 1) {
-        usersQuery = usersQuery.eq('role', roles[0]!);
-      } else {
-        usersQuery = usersQuery.in('role', roles);
-      }
-    }
-
-    // Execute query with ordering
-    const { data: users, error } = await usersQuery.order('email', {
-      ascending: true,
-    });
-
-    if (error) {
-      console.error('Supabase error:', error);
-      return NextResponse.json(
-        { error: 'Failed to search users' },
-        { status: 500 }
-      );
-    }
-
-    // Format response
-    const formattedUsers = users.map((user) => ({
+  return NextResponse.json({
+    users: users.map((user) => ({
       id: user.id,
       email: user.email,
       name:
@@ -117,20 +86,9 @@ export async function GET(request: NextRequest) {
         user.email,
       role: user.role,
       status: user.status,
-    }));
-
-    return NextResponse.json({
-      users: formattedUsers,
-      total: formattedUsers.length,
-      query,
-      roles: roles.length > 0 ? roles : null,
-    });
-  } catch (error) {
-    console.error('API error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
+    })),
+    total: users.length,
+    query,
+    roles: roles.length > 0 ? roles : null,
+  });
 }
-

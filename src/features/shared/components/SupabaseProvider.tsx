@@ -74,77 +74,40 @@ export const SupabaseProvider = ({
   }, [getToken]);
 
   useEffect(() => {
-    const manageRealtimeAuth = async () => {
+    const initializeAuth = async () => {
       if (!supabase || !isSignedIn) {
-        if (supabase?.realtime.isConnected()) {
-          supabase.realtime.disconnect();
-        }
+        supabase?.realtime.disconnect();
         setIsInitialized(false);
         return;
       }
 
-      const scheduleTokenRefresh = (token: string) => {
-        if (tokenRefreshTimer.current) {
-          clearTimeout(tokenRefreshTimer.current);
-        }
+      try {
+        const token = await getToken({ template: 'supabase' });
+        if (token) {
+          supabase.realtime.setAuth(token);
+          setIsInitialized(true);
 
-        try {
-          const tokenParts = token.split('.');
-          if (tokenParts.length === 3 && tokenParts[1]) {
-            const payload = JSON.parse(atob(tokenParts[1]));
-            const exp = payload.exp * 1000;
-            const now = Date.now();
-            const expiresIn = exp - now;
-            // Refresh 5 minutes before the token expires, or at least in 1 second.
-            const refreshIn = Math.max(expiresIn - 5 * 60 * 1000, 1000);
-            tokenRefreshTimer.current = setTimeout(
-              manageRealtimeAuth,
-              refreshIn
-            );
-          } else {
-            throw new Error('Invalid JWT structure');
-          }
-        } catch {
-          // Fallback to a 50-minute interval if token parsing fails
+          // Simple token refresh every 50 minutes
           tokenRefreshTimer.current = setTimeout(
-            manageRealtimeAuth,
+            initializeAuth,
             50 * 60 * 1000
           );
         }
-      };
-
-      try {
-        const token = await getToken({ template: 'supabase' });
-        if (!token) {
-          throw new Error('Failed to get Supabase token from Clerk.');
-        }
-
-        supabase.realtime.setAuth(token);
-        scheduleTokenRefresh(token);
-
-        if (!isInitialized) {
-          setIsInitialized(true);
-        }
-      } catch (error) {
-        console.error('Error setting Supabase auth:', error);
-        if (supabase.realtime.isConnected()) {
-          supabase.realtime.disconnect();
-        }
+      } catch {
+        supabase.realtime.disconnect();
         setIsInitialized(false);
       }
     };
 
-    manageRealtimeAuth();
+    initializeAuth();
 
     return () => {
       if (tokenRefreshTimer.current) {
         clearTimeout(tokenRefreshTimer.current);
       }
-      if (supabase?.realtime.isConnected()) {
-        supabase.realtime.disconnect();
-      }
+      supabase?.realtime.disconnect();
     };
-  }, [supabase, getToken, isSignedIn, isInitialized]);
+  }, [supabase, getToken, isSignedIn]);
 
   return (
     <SupabaseContext.Provider value={{ supabase, isInitialized }}>

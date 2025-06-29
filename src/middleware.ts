@@ -113,11 +113,7 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
       return response;
     }
 
-    if (
-      ['/tickets', '/test-integration', '/simple-realtime-test'].some((p) =>
-        pathname.startsWith(p)
-      )
-    ) {
+    if (pathname.startsWith('/tickets')) {
       if (!isAuth) {
         return NextResponse.redirect(new URL('/sign-in', req.url));
       }

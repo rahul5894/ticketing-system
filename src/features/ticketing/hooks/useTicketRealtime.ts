@@ -7,6 +7,29 @@ import type { Database } from '@/types/supabase';
 
 type TicketRow = Database['public']['Tables']['tickets']['Row'];
 
+// Helper function to transform Supabase row to Ticket format
+const transformTicketRow = (payload: TicketRow) => ({
+  id: payload.id,
+  tenantId: payload.tenant_id,
+  title: payload.title,
+  description: payload.description || '',
+  status: payload.status as 'open' | 'closed' | 'resolved' | 'pending',
+  priority: payload.priority as 'low' | 'medium' | 'high' | 'urgent',
+  department: payload.department as
+    | 'sales'
+    | 'support'
+    | 'marketing'
+    | 'technical',
+  userId: payload.created_by,
+  userName: 'Unknown User',
+  userEmail: '',
+  userAvatar: undefined,
+  createdAt: new Date(payload.created_at || new Date()),
+  updatedAt: new Date(payload.updated_at || new Date()),
+  messages: [],
+  attachments: [],
+});
+
 /**
  * Hook for real-time ticket updates
  * Automatically syncs ticket changes with the Zustand store
@@ -20,30 +43,7 @@ export function useTicketRealtime(
 
   const handleTicketInsert = useCallback(
     (payload: TicketRow) => {
-      // Convert Supabase row to our Ticket format
-      const newTicket = {
-        id: payload.id,
-        tenantId: payload.tenant_id,
-        title: payload.title,
-        description: payload.description || '',
-        status: payload.status as 'open' | 'closed' | 'resolved' | 'pending',
-        priority: payload.priority as 'low' | 'medium' | 'high' | 'urgent',
-        department: payload.department as
-          | 'sales'
-          | 'support'
-          | 'marketing'
-          | 'technical',
-        userId: payload.created_by,
-        userName: 'Unknown User', // Will be populated from user lookup
-        userEmail: '',
-        userAvatar: undefined,
-        createdAt: new Date(payload.created_at || new Date()),
-        updatedAt: new Date(payload.updated_at || new Date()),
-        messages: [], // Messages will be loaded separately
-        attachments: [], // Attachments will be loaded separately
-      };
-
-      // Add to current tickets
+      const newTicket = transformTicketRow(payload);
       const currentTickets = getTicketsForTenant(tenantId);
       setTickets([newTicket, ...currentTickets]);
     },
@@ -52,30 +52,7 @@ export function useTicketRealtime(
 
   const handleTicketUpdate = useCallback(
     (payload: TicketRow) => {
-      // Convert Supabase row to our Ticket format
-      const updatedTicket = {
-        id: payload.id,
-        tenantId: payload.tenant_id,
-        title: payload.title,
-        description: payload.description || '',
-        status: payload.status as 'open' | 'closed' | 'resolved' | 'pending',
-        priority: payload.priority as 'low' | 'medium' | 'high' | 'urgent',
-        department: payload.department as
-          | 'sales'
-          | 'support'
-          | 'marketing'
-          | 'technical',
-        userId: payload.created_by,
-        userName: 'Unknown User', // Will be populated from user lookup
-        userEmail: '',
-        userAvatar: undefined,
-        createdAt: new Date(payload.created_at || new Date()),
-        updatedAt: new Date(payload.updated_at || new Date()),
-        messages: [], // Messages will be loaded separately
-        attachments: [], // Attachments will be loaded separately
-      };
-
-      // Update in current tickets
+      const updatedTicket = transformTicketRow(payload);
       const currentTickets = getTicketsForTenant(tenantId);
       const updatedTickets = currentTickets.map((ticket) =>
         ticket.id === updatedTicket.id ? updatedTicket : ticket
@@ -107,8 +84,6 @@ export function useTicketRealtime(
       return;
     }
 
-    console.log('Setting up real-time subscription for tenant:', tenantId);
-
     const channel = supabase
       .channel(`tickets:${tenantId}`)
       .on(
@@ -119,10 +94,7 @@ export function useTicketRealtime(
           table: 'tickets',
           filter: `tenant_id=eq.${tenantId}`,
         },
-        (payload) => {
-          console.log('Real-time INSERT:', payload);
-          handleTicketInsert(payload.new as TicketRow);
-        }
+        (payload) => handleTicketInsert(payload.new as TicketRow)
       )
       .on(
         'postgres_changes',
@@ -132,10 +104,7 @@ export function useTicketRealtime(
           table: 'tickets',
           filter: `tenant_id=eq.${tenantId}`,
         },
-        (payload) => {
-          console.log('Real-time UPDATE:', payload);
-          handleTicketUpdate(payload.new as TicketRow);
-        }
+        (payload) => handleTicketUpdate(payload.new as TicketRow)
       )
       .on(
         'postgres_changes',
@@ -145,17 +114,11 @@ export function useTicketRealtime(
           table: 'tickets',
           filter: `tenant_id=eq.${tenantId}`,
         },
-        (payload) => {
-          console.log('Real-time DELETE:', payload);
-          handleTicketDelete(payload.old as TicketRow);
-        }
+        (payload) => handleTicketDelete(payload.old as TicketRow)
       )
-      .subscribe((status) => {
-        console.log('Real-time subscription status:', status);
-      });
+      .subscribe();
 
     return () => {
-      console.log('Cleaning up real-time subscription');
       supabase.removeChannel(channel);
     };
   }, [
@@ -173,4 +136,3 @@ export function useTicketRealtime(
     isEnabled: enabled && !!tenantId && isAuthenticated && !useMockData,
   };
 }
-

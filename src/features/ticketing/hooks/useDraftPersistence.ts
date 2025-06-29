@@ -23,8 +23,8 @@ export function useDraftPersistence(form: UseFormReturn<CreateTicketFormData>) {
   const saveDraft = useCallback((data: TicketDraft) => {
     try {
       localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(data));
-    } catch (error) {
-      console.warn('Failed to save ticket draft:', error);
+    } catch {
+      // Silently fail if localStorage is not available
     }
   }, []);
 
@@ -32,21 +32,18 @@ export function useDraftPersistence(form: UseFormReturn<CreateTicketFormData>) {
   const loadDraft = useCallback((): TicketDraft | null => {
     try {
       const draftData = localStorage.getItem(DRAFT_STORAGE_KEY);
-      if (draftData) {
-        return JSON.parse(draftData);
-      }
-    } catch (error) {
-      console.warn('Failed to load ticket draft:', error);
+      return draftData ? JSON.parse(draftData) : null;
+    } catch {
+      return null;
     }
-    return null;
   }, []);
 
   // Clear draft from localStorage
   const clearDraft = useCallback(() => {
     try {
       localStorage.removeItem(DRAFT_STORAGE_KEY);
-    } catch (error) {
-      console.warn('Failed to clear ticket draft:', error);
+    } catch {
+      // Silently fail if localStorage is not available
     }
   }, []);
 

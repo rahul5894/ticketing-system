@@ -1,10 +1,9 @@
 'use client';
 
-import { useUser, useAuth as useClerkAuth, useSession } from '@clerk/nextjs';
+import { useUser, useClerk } from '@clerk/nextjs';
 import { useTenant } from '@/features/tenant/context/TenantContext';
-import { getDomainFromWindow, DomainInfoState } from '@/lib/domain';
-import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useCallback, useState } from 'react';
 import { Tenant } from '@/features/tenant/models/tenant.schema';
 
 export interface AuthState {
@@ -13,136 +12,72 @@ export interface AuthState {
   isSignedIn: boolean;
   tenant: Tenant | null;
   tenantId: string | null;
+  role: string;
   isSuperAdmin: boolean;
   isAdmin: boolean;
   isAgent: boolean;
   isUser: boolean;
-  domainInfo: DomainInfoState;
-  requiresAuth: boolean;
+  isTransitioning: boolean;
+}
+
+export interface AuthActions {
+  signOut: () => Promise<void>;
+  navigateToTickets: () => void;
+  navigateToSignIn: () => void;
+  navigateToSignUp: () => void;
 }
 
 /**
- * Comprehensive authentication hook that combines Clerk auth with tenant context
+ * Optimized authentication hook with modern 2025 patterns
  */
-export function useAuth(): AuthState {
+export function useAuth(): AuthState & AuthActions {
   const { user, isLoaded, isSignedIn } = useUser();
-  const { session } = useSession();
+  const { signOut: clerkSignOut } = useClerk();
   const { tenant, tenantId } = useTenant();
-  const [domainInfo, setDomainInfo] = useState<DomainInfoState>(null);
+  const router = useRouter();
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
-  useEffect(() => {
-    setDomainInfo(getDomainFromWindow());
-  }, []);
+  // Get role with simplified logic
+  const role =
+    (user?.publicMetadata?.role as string) ||
+    (user?.emailAddresses?.[0]?.emailAddress === 'rohitjohn5822@gmail.com'
+      ? 'super_admin'
+      : 'user');
 
-  // Get user role from multiple sources with proper fallback
-  const [userRole, setUserRole] = useState<string>('user');
+  const isSuperAdmin = role === 'super_admin';
+  const isAdmin = role === 'admin' || isSuperAdmin;
+  const isAgent = role === 'agent';
+  const isUser = role === 'user' || role === 'member';
 
-  useEffect(() => {
-    const getRole = async () => {
-      if (!user?.id) return;
-
-      try {
-        // 1. Try to get role from JWT claims (now with comprehensive claims)
-        if (session) {
-          try {
-            const token = await session.getToken();
-            if (token && token.split('.').length === 3) {
-              const payloadPart = token.split('.')[1];
-              if (payloadPart) {
-                const payload = JSON.parse(atob(payloadPart));
-
-                // Check multiple sources in JWT for role
-                const roleFromJWT = payload.role;
-                const userMetadata = payload.user_metadata;
-                const orgPermissions = payload.org_permissions;
-
-                console.log('🎯 JWT Claims Debug:', {
-                  role: roleFromJWT,
-                  user_metadata: userMetadata,
-                  org_permissions: orgPermissions,
-                  email: payload.email,
-                  tenant_id: payload.tenant_id,
-                });
-
-                // Priority 1: Organization role
-                if (roleFromJWT && roleFromJWT !== 'authenticated') {
-                  console.log('🎯 Role from JWT org.role:', roleFromJWT);
-                  setUserRole(roleFromJWT);
-                  return;
-                }
-
-                // Priority 2: User metadata role
-                if (
-                  userMetadata &&
-                  typeof userMetadata === 'object' &&
-                  userMetadata.role
-                ) {
-                  console.log(
-                    '🎯 Role from JWT user_metadata:',
-                    userMetadata.role
-                  );
-                  setUserRole(userMetadata.role);
-                  return;
-                }
-              }
-            }
-          } catch (error) {
-            console.warn('Could not decode JWT token:', error);
-          }
-        }
-
-        // 2. Fallback to publicMetadata
-        const roleFromMetadata = user?.publicMetadata?.role as string;
-        if (roleFromMetadata) {
-          console.log('🎯 Role from publicMetadata:', roleFromMetadata);
-          setUserRole(roleFromMetadata);
-          return;
-        }
-
-        // 3. Special case for super admin email (temporary until JWT claims are fully configured)
-        if (
-          user.emailAddresses?.[0]?.emailAddress === 'rohitjohn5822@gmail.com'
-        ) {
-          console.log('🎯 Role from email fallback: super_admin');
-          setUserRole('super_admin');
-          return;
-        }
-
-        // 4. Default fallback
-        console.log('🎯 Using default role: user');
-        setUserRole('user');
-      } catch (error) {
-        console.error('Error getting user role:', error);
-        setUserRole('user');
-      }
-    };
-
-    if (isLoaded && user) {
-      getRole();
+  const signOut = useCallback(async () => {
+    setIsTransitioning(true);
+    try {
+      await clerkSignOut();
+      router.replace('/sign-in');
+    } catch {
+      window.location.href = '/sign-in';
+    } finally {
+      setIsTransitioning(false);
     }
-  }, [session, user, isLoaded]);
+  }, [clerkSignOut, router]);
 
-  const isSuperAdmin = userRole === 'super_admin';
-  const isAdmin = userRole === 'admin' || isSuperAdmin;
-  const isAgent = userRole === 'agent';
-  const isUser = userRole === 'user' || userRole === 'member';
+  const navigateToTickets = useCallback(() => {
+    setIsTransitioning(true);
+    router.push('/tickets');
+    setTimeout(() => setIsTransitioning(false), 100);
+  }, [router]);
 
-  // Debug logging for development
-  if (process.env.NODE_ENV === 'development' && user) {
-    console.log('🔍 Auth Debug Info:', {
-      userId: user.id,
-      email: user.emailAddresses?.[0]?.emailAddress,
-      publicMetadata: user.publicMetadata,
-      userRole,
-      isSuperAdmin,
-      isAdmin,
-      isAgent,
-      isUser,
-    });
-  }
+  const navigateToSignIn = useCallback(() => {
+    setIsTransitioning(true);
+    router.push('/sign-in');
+    setTimeout(() => setIsTransitioning(false), 100);
+  }, [router]);
 
-  // Determine if authentication is required based on domain
-  const requiresAuth = domainInfo?.isSubdomain || false;
+  const navigateToSignUp = useCallback(() => {
+    setIsTransitioning(true);
+    router.push('/sign-up');
+    setTimeout(() => setIsTransitioning(false), 100);
+  }, [router]);
 
   return {
     user,
@@ -150,12 +85,16 @@ export function useAuth(): AuthState {
     isSignedIn: isSignedIn || false,
     tenant,
     tenantId,
+    role,
     isSuperAdmin,
     isAdmin,
     isAgent,
     isUser,
-    domainInfo,
-    requiresAuth,
+    isTransitioning,
+    signOut,
+    navigateToTickets,
+    navigateToSignIn,
+    navigateToSignUp,
   };
 }
 
@@ -166,75 +105,41 @@ export function usePermissions() {
   const { isSuperAdmin, isAdmin, isAgent, isUser, tenant } = useAuth();
 
   const hasPermission = (permission: string): boolean => {
-    // Super Admin and Admin have all permissions
-    if (isSuperAdmin || isAdmin) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log(
-          `✅ Permission "${permission}" granted for ${
-            isSuperAdmin ? 'super_admin' : 'admin'
-          }`
-        );
-      }
-      return true;
-    }
+    if (isSuperAdmin || isAdmin) return true;
 
-    // Check tenant-specific permissions
     const tenantFeatures = tenant?.settings?.features || [];
 
-    let hasAccess = false;
     switch (permission) {
       case 'tickets.view':
-        hasAccess = isUser || isAgent;
-        break;
+        return isUser || isAgent;
       case 'tickets.create':
-        hasAccess = isSuperAdmin || isAdmin; // Only Super Admin and Admin can create tickets
-        break;
+        return isSuperAdmin || isAdmin;
       case 'tickets.update':
-        hasAccess = isAgent || isAdmin || isSuperAdmin;
-        break;
+        return isAgent || isAdmin || isSuperAdmin;
       case 'tickets.delete':
-        hasAccess = isAdmin || isSuperAdmin;
-        break;
+        return isAdmin || isSuperAdmin;
       case 'tickets.assign':
-        hasAccess = isAdmin || isSuperAdmin;
-        break;
+        return isAdmin || isSuperAdmin;
       case 'tickets.priority.change':
-        hasAccess = isAdmin || isSuperAdmin; // Only Admin/Super Admin can change priority
-        break;
+        return isAdmin || isSuperAdmin;
       case 'tickets.department.change':
-        hasAccess = isAdmin || isSuperAdmin; // Only Admin/Super Admin can change department
-        break;
+        return isAdmin || isSuperAdmin;
       case 'analytics.view':
-        hasAccess =
+        return (
           (isAgent || isAdmin || isSuperAdmin) &&
-          tenantFeatures.includes('analytics');
-        break;
+          tenantFeatures.includes('analytics')
+        );
       case 'integrations.manage':
-        hasAccess =
-          (isAdmin || isSuperAdmin) && tenantFeatures.includes('integrations');
-        break;
+        return (
+          (isAdmin || isSuperAdmin) && tenantFeatures.includes('integrations')
+        );
       case 'users.manage':
-        hasAccess = isAdmin || isSuperAdmin;
-        break;
+        return isAdmin || isSuperAdmin;
       case 'settings.manage':
-        hasAccess = isAdmin || isSuperAdmin;
-        break;
+        return isAdmin || isSuperAdmin;
       default:
-        hasAccess = false;
+        return false;
     }
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`🔐 Permission Check: "${permission}"`, {
-        hasAccess,
-        isSuperAdmin,
-        isAdmin,
-        isAgent,
-        isUser,
-        tenantFeatures,
-      });
-    }
-
-    return hasAccess;
   };
 
   const canAccessFeature = (feature: string): boolean => {
@@ -249,105 +154,5 @@ export function usePermissions() {
     isAdmin,
     isAgent,
     isUser,
-  };
-}
-
-/**
- * Hook for authentication actions with smooth transitions
- */
-export function useAuthActions() {
-  const { signOut } = useClerkAuth();
-  const { domainInfo } = useAuth();
-  const router = useRouter();
-
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-
-      // Use programmatic navigation for smooth transitions
-      if (domainInfo?.isLocalhost) {
-        router.replace('/');
-      } else {
-        router.replace('/sign-in');
-      }
-    } catch (error) {
-      console.error('Sign out error:', error);
-      // Fallback to window.location only on error
-      window.location.href = '/sign-in';
-    }
-  };
-
-  const redirectToSignIn = () => {
-    router.push('/sign-in');
-  };
-
-  const redirectToSignUp = () => {
-    router.push('/sign-up');
-  };
-
-  const redirectToTickets = () => {
-    router.push('/tickets');
-  };
-
-  return {
-    signOut: handleSignOut,
-    redirectToSignIn,
-    redirectToSignUp,
-    redirectToTickets,
-  };
-}
-
-/**
- * Hook for protecting components that require authentication with smooth transitions
- */
-export function useRequireAuth() {
-  const { isLoaded, isSignedIn, requiresAuth } = useAuth();
-  const router = useRouter();
-  const [shouldRedirect, setShouldRedirect] = useState(false);
-
-  useEffect(() => {
-    if (isLoaded && requiresAuth && !isSignedIn) {
-      setShouldRedirect(true);
-    }
-  }, [isLoaded, requiresAuth, isSignedIn]);
-
-  useEffect(() => {
-    if (shouldRedirect) {
-      router.replace('/sign-in');
-    }
-  }, [shouldRedirect, router]);
-
-  return {
-    isLoading: !isLoaded,
-    isAuthenticated: isSignedIn,
-    requiresAuth,
-    shouldRedirect,
-  };
-}
-
-/**
- * Hook for tenant-specific authentication checks
- */
-export function useTenantAuth() {
-  const { user, tenant, tenantId, isLoaded } = useAuth();
-  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    if (!isLoaded || !user || !tenantId) {
-      setHasAccess(null);
-      return;
-    }
-
-    // Check if user has access to this tenant
-    // In a real app, this would check the user_tenants table
-    // For now, we'll assume all authenticated users have access
-    setHasAccess(true);
-  }, [isLoaded, user, tenantId]);
-
-  return {
-    hasAccess,
-    tenant,
-    tenantId,
-    isLoading: !isLoaded || hasAccess === null,
   };
 }
